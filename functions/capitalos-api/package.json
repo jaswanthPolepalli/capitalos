@@ -1,0 +1,10 @@
+{
+  "name": "capitalos-api",
+  "version": "1.0.0",
+  "description": "CapitalOS serverless API function",
+  "main": "index.js",
+  "dependencies": {
+    "nodemailer": "^9.1.1",
+    "zcatalyst-sdk-node": "latest"
+  }
+}

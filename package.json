@@ -1,0 +1,47 @@
+{
+  "name": "capitalos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run typecheck && npm run client:build",
+    "client:build": "vite build --config client/vite.config.ts",
+    "client:dev": "vite --config client/vite.config.ts",
+    "client:preview": "vite preview --config client/vite.config.ts",
+    "client:typecheck": "tsc --noEmit -p client/tsconfig.json",
+    "iac:pack": "npm run validate && tsx scripts/package-iac.ts",
+    "schema:check": "tsx scripts/generate-datastore-template.ts --check",
+    "schema:generate": "tsx scripts/generate-datastore-template.ts",
+    "typecheck": "tsc --noEmit && npm run client:typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "validate": "npm run schema:check && npm run typecheck && npm test && npm run client:build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "framer-motion": "^13.1.1",
+    "lucide-react": "^1.39.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.3",
+    "recharts": "^3.10.1",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^5.2.0",
+    "fflate": "^0.8.2",
+    "jsdom": "^30.0.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.3.6",
+    "vitest": "^3.2.0"
+  }
+}

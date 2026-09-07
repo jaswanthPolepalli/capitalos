@@ -1,0 +1,2775 @@
+{
+  "name": "project-template",
+  "version": "1.0.0",
+  "parameters": {},
+  "components": {
+    "Datastore": [
+      {
+        "type": "table",
+        "name": "Partners",
+        "properties": {
+          "table_name": "Partners"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "CEOs",
+        "properties": {
+          "table_name": "CEOs"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "Documents",
+        "properties": {
+          "table_name": "Documents"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "Agreements",
+        "properties": {
+          "table_name": "Agreements"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "Transactions",
+        "properties": {
+          "table_name": "Transactions"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "PartnerContributions",
+        "properties": {
+          "table_name": "PartnerContributions"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "CEOInvestments",
+        "properties": {
+          "table_name": "CEOInvestments"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "ProfitSchedules",
+        "properties": {
+          "table_name": "ProfitSchedules"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "PortalAccess",
+        "properties": {
+          "table_name": "PortalAccess"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "AuditEvents",
+        "properties": {
+          "table_name": "AuditEvents"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "SchemaVersions",
+        "properties": {
+          "table_name": "SchemaVersions"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "COS_CreditCards",
+        "properties": {
+          "table_name": "COS_CreditCards"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "column",
+        "name": "Partners-partner_code",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "partner_code",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Partners",
+          "table_name": "Partners",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.Partners"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Partners-name",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "name",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Partners",
+          "table_name": "Partners",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.Partners"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Partners-phone",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "phone",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Partners",
+          "table_name": "Partners",
+          "max_length": 30
+        },
+        "dependsOn": [
+          "Datastore.table.Partners"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Partners-email",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "email",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Partners",
+          "table_name": "Partners",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.Partners"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Partners-address",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "address",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Partners",
+          "table_name": "Partners",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.Partners"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Partners-status",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "status",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Partners",
+          "table_name": "Partners",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.Partners"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Partners-notes",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "notes",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Partners",
+          "table_name": "Partners",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.Partners"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Partners-deleted_at",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "deleted_at",
+          "data_type": "datetime",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "Partners",
+          "table_name": "Partners",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.Partners"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "Partners-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "Partners"
+        },
+        "dependsOn": [
+          "Datastore.table.Partners"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "Partners-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "Partners"
+        },
+        "dependsOn": [
+          "Datastore.table.Partners"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOs-ceo_code",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "ceo_code",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "CEOs",
+          "table_name": "CEOs",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOs-ceo_name",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "ceo_name",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "CEOs",
+          "table_name": "CEOs",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOs-business_name",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "business_name",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "CEOs",
+          "table_name": "CEOs",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOs-phone",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "phone",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "CEOs",
+          "table_name": "CEOs",
+          "max_length": 30
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOs-email",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "email",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "CEOs",
+          "table_name": "CEOs",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOs-address",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "address",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "CEOs",
+          "table_name": "CEOs",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOs-status",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "status",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "CEOs",
+          "table_name": "CEOs",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOs-notes",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "notes",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "CEOs",
+          "table_name": "CEOs",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "CEOs-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "CEOs"
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "CEOs-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "CEOs"
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Documents-file_name",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "file_name",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Documents",
+          "table_name": "Documents",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.Documents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Documents-file_type",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "file_type",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Documents",
+          "table_name": "Documents",
+          "max_length": 100
+        },
+        "dependsOn": [
+          "Datastore.table.Documents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Documents-file_size_bytes",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "file_size_bytes",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "Documents",
+          "table_name": "Documents",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.Documents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Documents-storage_reference",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "storage_reference",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "Documents",
+          "table_name": "Documents",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.Documents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Documents-uploaded_by",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "uploaded_by",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "Documents",
+          "table_name": "Documents",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.Documents"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "Documents-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "Documents"
+        },
+        "dependsOn": [
+          "Datastore.table.Documents"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "Documents-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "Documents"
+        },
+        "dependsOn": [
+          "Datastore.table.Documents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-agreement_code",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "agreement_code",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-party_type",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "party_type",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 20
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-partner_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "partner_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 50,
+          "parent_table": "Partners",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Partners",
+          "Datastore.table.Agreements",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-ceo_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "ceo_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 50,
+          "parent_table": "CEOs",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs",
+          "Datastore.table.Agreements",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-agreement_type",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "agreement_type",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 20
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-capital_amount",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "capital_amount",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-start_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "start_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-end_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "end_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-profit_calculation_type",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "profit_calculation_type",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 20
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-profit_rate",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "profit_rate",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-fixed_profit_amount",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "fixed_profit_amount",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-custom_profit_terms",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "custom_profit_terms",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-profit_frequency",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "profit_frequency",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 20
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-custom_frequency_terms",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "custom_frequency_terms",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-principal_repayment_terms",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "principal_repayment_terms",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-profit_payment_terms",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "profit_payment_terms",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-status",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "status",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-notes",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "notes",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Agreements-document_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "document_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Agreements",
+          "table_name": "Agreements",
+          "max_length": 50,
+          "parent_table": "Documents",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Documents",
+          "Datastore.table.Agreements",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "Agreements-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "Agreements"
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "Agreements-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "Agreements"
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-transaction_code",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "transaction_code",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-transaction_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "transaction_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-transaction_type",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "transaction_type",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-partner_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "partner_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 50,
+          "parent_table": "Partners",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Partners",
+          "Datastore.table.Transactions",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-ceo_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "ceo_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 50,
+          "parent_table": "CEOs",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs",
+          "Datastore.table.Transactions",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-agreement_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "agreement_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 50,
+          "parent_table": "Agreements",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements",
+          "Datastore.table.Transactions",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-principal_amount",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "principal_amount",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-profit_amount",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "profit_amount",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-total_amount",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "total_amount",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-direction",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "direction",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 10
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-payment_method",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "payment_method",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-reference_number",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "reference_number",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-notes",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "notes",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "Transactions-document_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "document_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "Transactions",
+          "table_name": "Transactions",
+          "max_length": 50,
+          "parent_table": "Documents",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Documents",
+          "Datastore.table.Transactions",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "Transactions-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "Transactions"
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "Transactions-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "Transactions"
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PartnerContributions-contribution_code",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "contribution_code",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "PartnerContributions",
+          "table_name": "PartnerContributions",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.PartnerContributions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PartnerContributions-partner_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "partner_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "PartnerContributions",
+          "table_name": "PartnerContributions",
+          "max_length": 50,
+          "parent_table": "Partners",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Partners",
+          "Datastore.table.PartnerContributions",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PartnerContributions-agreement_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "agreement_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "PartnerContributions",
+          "table_name": "PartnerContributions",
+          "max_length": 50,
+          "parent_table": "Agreements",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements",
+          "Datastore.table.PartnerContributions",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PartnerContributions-ledger_transaction_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "ledger_transaction_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "PartnerContributions",
+          "table_name": "PartnerContributions",
+          "max_length": 50,
+          "parent_table": "Transactions",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions",
+          "Datastore.table.PartnerContributions",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PartnerContributions-contribution_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "contribution_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "PartnerContributions",
+          "table_name": "PartnerContributions",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.PartnerContributions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PartnerContributions-amount",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "amount",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "PartnerContributions",
+          "table_name": "PartnerContributions",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.PartnerContributions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PartnerContributions-payment_method",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "payment_method",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "PartnerContributions",
+          "table_name": "PartnerContributions",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.PartnerContributions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PartnerContributions-reference_number",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "reference_number",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "PartnerContributions",
+          "table_name": "PartnerContributions",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.PartnerContributions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PartnerContributions-notes",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "notes",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "PartnerContributions",
+          "table_name": "PartnerContributions",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.PartnerContributions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PartnerContributions-document_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "document_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "PartnerContributions",
+          "table_name": "PartnerContributions",
+          "max_length": 50,
+          "parent_table": "Documents",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Documents",
+          "Datastore.table.PartnerContributions",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "PartnerContributions-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "PartnerContributions"
+        },
+        "dependsOn": [
+          "Datastore.table.PartnerContributions"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "PartnerContributions-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "PartnerContributions"
+        },
+        "dependsOn": [
+          "Datastore.table.PartnerContributions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-investment_code",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "investment_code",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.CEOInvestments"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-ceo_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "ceo_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 50,
+          "parent_table": "CEOs",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs",
+          "Datastore.table.CEOInvestments",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-agreement_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "agreement_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 50,
+          "parent_table": "Agreements",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements",
+          "Datastore.table.CEOInvestments",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-ledger_transaction_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "ledger_transaction_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 50,
+          "parent_table": "Transactions",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Transactions",
+          "Datastore.table.CEOInvestments",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-investment_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "investment_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.CEOInvestments"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-principal_amount",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "principal_amount",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.CEOInvestments"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-purpose",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "purpose",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.CEOInvestments"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-payment_method",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "payment_method",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.CEOInvestments"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-reference_number",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "reference_number",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.CEOInvestments"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-status",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "status",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.CEOInvestments"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-notes",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "notes",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.CEOInvestments"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "CEOInvestments-document_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "document_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "CEOInvestments",
+          "table_name": "CEOInvestments",
+          "max_length": 50,
+          "parent_table": "Documents",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Documents",
+          "Datastore.table.CEOInvestments",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "CEOInvestments-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "CEOInvestments"
+        },
+        "dependsOn": [
+          "Datastore.table.CEOInvestments"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "CEOInvestments-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "CEOInvestments"
+        },
+        "dependsOn": [
+          "Datastore.table.CEOInvestments"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "ProfitSchedules-agreement_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "agreement_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "ProfitSchedules",
+          "table_name": "ProfitSchedules",
+          "max_length": 50,
+          "parent_table": "Agreements",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Agreements",
+          "Datastore.table.ProfitSchedules",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "ProfitSchedules-partner_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "partner_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "ProfitSchedules",
+          "table_name": "ProfitSchedules",
+          "max_length": 50,
+          "parent_table": "Partners",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Partners",
+          "Datastore.table.ProfitSchedules",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "ProfitSchedules-ceo_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "ceo_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "ProfitSchedules",
+          "table_name": "ProfitSchedules",
+          "max_length": 50,
+          "parent_table": "CEOs",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs",
+          "Datastore.table.ProfitSchedules",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "ProfitSchedules-due_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "due_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "ProfitSchedules",
+          "table_name": "ProfitSchedules",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.ProfitSchedules"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "ProfitSchedules-expected_principal",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "expected_principal",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "ProfitSchedules",
+          "table_name": "ProfitSchedules",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.ProfitSchedules"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "ProfitSchedules-expected_profit",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "expected_profit",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "ProfitSchedules",
+          "table_name": "ProfitSchedules",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.ProfitSchedules"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "ProfitSchedules-paid_principal",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "paid_principal",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "ProfitSchedules",
+          "table_name": "ProfitSchedules",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.ProfitSchedules"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "ProfitSchedules-paid_profit",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "paid_profit",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "ProfitSchedules",
+          "table_name": "ProfitSchedules",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.ProfitSchedules"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "ProfitSchedules-principal_pending",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "principal_pending",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "ProfitSchedules",
+          "table_name": "ProfitSchedules",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.ProfitSchedules"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "ProfitSchedules-profit_pending",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "profit_pending",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "ProfitSchedules",
+          "table_name": "ProfitSchedules",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.ProfitSchedules"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "ProfitSchedules-status",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "status",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "ProfitSchedules",
+          "table_name": "ProfitSchedules",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.ProfitSchedules"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "ProfitSchedules-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "ProfitSchedules"
+        },
+        "dependsOn": [
+          "Datastore.table.ProfitSchedules"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "ProfitSchedules-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "ProfitSchedules"
+        },
+        "dependsOn": [
+          "Datastore.table.ProfitSchedules"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PortalAccess-access_code",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "access_code",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "PortalAccess",
+          "table_name": "PortalAccess",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.PortalAccess"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PortalAccess-access_type",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "access_type",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "PortalAccess",
+          "table_name": "PortalAccess",
+          "max_length": 20
+        },
+        "dependsOn": [
+          "Datastore.table.PortalAccess"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PortalAccess-partner_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "partner_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "PortalAccess",
+          "table_name": "PortalAccess",
+          "max_length": 50,
+          "parent_table": "Partners",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Partners",
+          "Datastore.table.PortalAccess",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PortalAccess-ceo_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "ceo_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "PortalAccess",
+          "table_name": "PortalAccess",
+          "max_length": 50,
+          "parent_table": "CEOs",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.CEOs",
+          "Datastore.table.PortalAccess",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PortalAccess-token_hash",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "token_hash",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "PortalAccess",
+          "table_name": "PortalAccess",
+          "max_length": 64
+        },
+        "dependsOn": [
+          "Datastore.table.PortalAccess"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PortalAccess-active",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "active",
+          "data_type": "boolean",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "PortalAccess",
+          "table_name": "PortalAccess",
+          "max_length": 50,
+          "default_value": "true"
+        },
+        "dependsOn": [
+          "Datastore.table.PortalAccess"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PortalAccess-revoked_at",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "revoked_at",
+          "data_type": "datetime",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "PortalAccess",
+          "table_name": "PortalAccess",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.PortalAccess"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "PortalAccess-last_access_at",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "last_access_at",
+          "data_type": "datetime",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "PortalAccess",
+          "table_name": "PortalAccess",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.PortalAccess"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "PortalAccess-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "PortalAccess"
+        },
+        "dependsOn": [
+          "Datastore.table.PortalAccess"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "PortalAccess-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "PortalAccess"
+        },
+        "dependsOn": [
+          "Datastore.table.PortalAccess"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "AuditEvents-event_code",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "event_code",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "AuditEvents",
+          "table_name": "AuditEvents",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.AuditEvents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "AuditEvents-entity_type",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "entity_type",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "AuditEvents",
+          "table_name": "AuditEvents",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.AuditEvents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "AuditEvents-entity_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "entity_id",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "AuditEvents",
+          "table_name": "AuditEvents",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.AuditEvents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "AuditEvents-action",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "action",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "AuditEvents",
+          "table_name": "AuditEvents",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.AuditEvents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "AuditEvents-actor_id",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "actor_id",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "AuditEvents",
+          "table_name": "AuditEvents",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.AuditEvents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "AuditEvents-before_state",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "before_state",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "AuditEvents",
+          "table_name": "AuditEvents",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.AuditEvents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "AuditEvents-after_state",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "after_state",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "AuditEvents",
+          "table_name": "AuditEvents",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.AuditEvents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "AuditEvents-reason",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "reason",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "AuditEvents",
+          "table_name": "AuditEvents",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.AuditEvents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "AuditEvents-occurred_at",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "occurred_at",
+          "data_type": "datetime",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "AuditEvents",
+          "table_name": "AuditEvents",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.AuditEvents"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "AuditEvents-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "AuditEvents"
+        },
+        "dependsOn": [
+          "Datastore.table.AuditEvents"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "AuditEvents-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "AuditEvents"
+        },
+        "dependsOn": [
+          "Datastore.table.AuditEvents"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "SchemaVersions-version",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "version",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "SchemaVersions",
+          "table_name": "SchemaVersions",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.SchemaVersions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "SchemaVersions-checksum",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "checksum",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "SchemaVersions",
+          "table_name": "SchemaVersions",
+          "max_length": 64
+        },
+        "dependsOn": [
+          "Datastore.table.SchemaVersions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "SchemaVersions-description",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "description",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "SchemaVersions",
+          "table_name": "SchemaVersions",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.SchemaVersions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "SchemaVersions-applied_at",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "applied_at",
+          "data_type": "datetime",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "SchemaVersions",
+          "table_name": "SchemaVersions",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.SchemaVersions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "SchemaVersions-applied_by",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "applied_by",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "SchemaVersions",
+          "table_name": "SchemaVersions",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.SchemaVersions"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "SchemaVersions-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "SchemaVersions"
+        },
+        "dependsOn": [
+          "Datastore.table.SchemaVersions"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "SchemaVersions-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "SchemaVersions"
+        },
+        "dependsOn": [
+          "Datastore.table.SchemaVersions"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-partner_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "partner_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 50,
+          "parent_table": "Partners",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Partners",
+          "Datastore.table.COS_CreditCards",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-card_name",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "card_name",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-card_limit",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "card_limit",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-pending_limit",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "pending_limit",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-bill_generation_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "bill_generation_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-due_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "due_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-notes",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "notes",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "COS_CreditCards-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "COS_CreditCards"
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "COS_CreditCards-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "COS_CreditCards"
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+	"client": {
+		"source": "client/dist"
+	},
+	"functions": {
+		"source": "functions",
+		"targets": [
+			"capitalos-api"
+		]
+	}
+}

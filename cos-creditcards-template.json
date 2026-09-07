@@ -1,0 +1,185 @@
+{
+  "name": "project-template",
+  "version": "1.0.0",
+  "parameters": {},
+  "components": {
+    "Datastore": [
+      {
+        "type": "table",
+        "name": "COS_CreditCards",
+        "properties": {
+          "table_name": "COS_CreditCards"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-partner_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "partner_id",
+          "data_type": "foreign key",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 50,
+          "parent_table": "Partners",
+          "parent_column": "ROWID",
+          "constraint_type": "ON-DELETE-SET-NULL"
+        },
+        "dependsOn": [
+          "Datastore.table.Partners",
+          "Datastore.table.COS_CreditCards",
+          "Datastore.column.ROWID"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-card_name",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "card_name",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-card_limit",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "card_limit",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-pending_limit",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "pending_limit",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-bill_generation_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "bill_generation_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-due_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "due_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_CreditCards-notes",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "notes",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "COS_CreditCards",
+          "table_name": "COS_CreditCards",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "COS_CreditCards-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "COS_CreditCards"
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "COS_CreditCards-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "COS_CreditCards"
+        },
+        "dependsOn": [
+          "Datastore.table.COS_CreditCards"
+        ]
+      }
+    ]
+  }
+}
