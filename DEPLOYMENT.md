@@ -1,5 +1,7 @@
 # CapitalOS — Deployment & Project Reference
 
+**Latest hotfix — 6 October 2026:** Choosing Needs review on an excluded cashback transaction now clears its card/month’s unpaid selection. Paid selections show an actionable error and payment link. API, daily worker and frontend deployed after a fresh 623-record backup, verified recovery restoration and rollback rehearsal, 841 tests and hosted/browser checks. See [release evidence and rollback](docs/deployment-cashback-review-reset-2026-10-06.md).
+
 **Latest release — 6 October 2026:** Cashback now uses one manually selected transaction per card/calendar month. Unselected entries start Needs review; selecting Unpaid/Paid makes peers Not applicable with links to the selected transaction. API, daily worker and frontend deployed after a fresh 611-record backup, recovery-project restoration, rollback rehearsal, 834 tests and hosted/browser checks. See [release evidence and rollback](docs/deployment-manual-cashback-2026-10-06.md).
 
 **Previous cashback release — 6 October 2026:** Only the first card transaction each calendar month qualifies. Repeat transactions appear under **Not first transaction** and are excluded from normal cashback views and daily email follow-up. Deployed API, daily worker and frontend after a fresh 603-record backup, restoration into the existing recovery project, rollback rehearsal, 828 tests and hosted/browser checks. See [release evidence and rollback](docs/deployment-monthly-cashback-2026-10-06.md).

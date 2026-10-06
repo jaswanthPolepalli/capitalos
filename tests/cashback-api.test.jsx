@@ -99,3 +99,27 @@ it('does not replace a paid selection or send a second payment email', async () 
   expect(sendMail).not.toHaveBeenCalled();
   expect(h.db.COS_Allocations[1].cashback_data).toBeUndefined();
 });
+
+it('resets an unpaid card/month to review from an excluded peer and persists after reload', async () => {
+  const data = seed();
+  data.COS_Allocations[0].cashback_data = JSON.stringify({status:'unpaid', updatedAt:'2026-10-06T00:00:00Z'});
+  data.COS_Allocations.push({...data.COS_Allocations[0], ROWID:'peer', cashback_data:JSON.stringify({status:'not_applicable'})});
+  const h = createApiHarness(data);
+  expect((await h.request('PATCH', 'allocations/peer/cashback', {status:'review'})).status).toBe('success');
+  const rows = (await h.request('GET', 'allocations')).data;
+  expect(rows.map(cashbackStatus)).toEqual(['review','review']);
+  expect(rows.every(a => a.cashbackSelectedAllocationId === null)).toBe(true);
+  expect(JSON.parse(h.db.COS_Allocations[0].cashback_data).status).toBe('unpaid');
+});
+
+it('rejects a peer review reset when cashback is paid without changing data or recording a save', async () => {
+  const data = seed();
+  data.COS_Allocations[0].cashback_data = JSON.stringify(payment);
+  data.COS_Allocations.push({...data.COS_Allocations[0], ROWID:'peer', cashback_data:undefined});
+  const h = createApiHarness(data);
+  const before = structuredClone(h.db);
+  const result = await h.request('PATCH', 'allocations/peer/cashback', {status:'review'});
+  expect(result.status).toBe('error');
+  expect(result.message).toContain('already paid');
+  expect(h.db).toEqual(before);
+});

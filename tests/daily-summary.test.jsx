@@ -158,3 +158,15 @@ it('keeps all unselected same-day transactions in review regardless of creation 
   expect(report.cb).toHaveLength(2);
   expect(report.cb.every(row => row.status === 'review')).toBe(true);
 });
+
+it('includes both transactions in email/PDF follow-up after review resets an unpaid choice from a peer', async () => {
+  const s = seed();
+  s.COS_Allocations[0].cashback_data = JSON.stringify({status:'unpaid',updatedAt:'2026-10-06T00:00:00Z'});
+  s.COS_Allocations.push({...s.COS_Allocations[0],ROWID:'peer',cashback_data:undefined});
+  const h = createApiHarness(s);
+  expect(buildDailySummary(dataset(h.db),window).cb).toHaveLength(1);
+  expect((await h.request('PATCH','allocations/peer/cashback',{status:'review'})).status).toBe('success');
+  const report=buildDailySummary(dataset(h.db),window);
+  expect(report.cb.map(row=>row.status)).toEqual(['review','review']);
+  expect(report.activity.cashback).toBe(0);
+});

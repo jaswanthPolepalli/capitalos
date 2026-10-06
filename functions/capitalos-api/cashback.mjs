@@ -5,7 +5,8 @@
 export function monthlyCashback(allocations) {
   const groups = new Map();
   const key = a => JSON.stringify([a.creditCardId, a.receivedDate.slice(0, 7)]);
-  const newest = (a, b) => String(b.cashback?.selectionUpdatedAt || b.cashback?.updatedAt || '').localeCompare(String(a.cashback?.selectionUpdatedAt || a.cashback?.updatedAt || ''))
+  const decisionTime = a => Date.parse(a.cashback?.selectionUpdatedAt || a.cashback?.updatedAt || '') || 0;
+  const newest = (a, b) => decisionTime(b) - decisionTime(a)
     || String(b.id).localeCompare(String(a.id), 'en', { numeric: true });
   for (const a of allocations) {
     if (!a.creditCardId || a.combination) continue;
@@ -40,13 +41,15 @@ export function prepareCashback(input, allocation, today, now = new Date().toISO
   const cashback = validateCashback(input, allocation, today);
   cashback.updatedAt = now;
   if (cashback.status === 'paid') cashback.createdAt = allocation.cashback?.createdAt || now;
-  if (['unpaid', 'paid'].includes(cashback.status) || !allocation.cashbackSelectedAllocationId || allocation.cashbackSelectedAllocationId === allocation.id) {
+  // Review explicitly clears an unpaid choice even when saved from an excluded peer.
+  if (['review', 'unpaid', 'paid'].includes(cashback.status) || !allocation.cashbackSelectedAllocationId || allocation.cashbackSelectedAllocationId === allocation.id) {
     cashback.selectionUpdatedAt = new Date(Math.max(Date.parse(now), Date.parse(allocation.cashbackSelectionUpdatedAt || '') + 1 || 0)).toISOString();
   }
   return cashback;
 }
 export function validateCashback(input, allocation, today) {
   if (!allocation.creditCardId || allocation.combination) throw new Error('Cashback belongs to an original card contribution.');
+  if (input.status === 'review' && allocation.cashbackSelectedAllocationId && allocation.cashbackSelectedAllocationId !== allocation.id && allocation.cashbackSelectionStatus === 'paid') throw new Error('Cashback is already paid on another transaction for this card and month. Correct the selected cashback payment before returning these transactions to Needs review.');
   if (['unpaid', 'paid'].includes(input.status) && allocation.cashbackSelectedAllocationId && allocation.cashbackSelectedAllocationId !== allocation.id && allocation.cashbackSelectionStatus === 'paid' && allocation.cashback?.status !== 'paid') throw new Error('Cashback is already paid on another transaction for this card and month. Correct that payment before selecting a different transaction.');
   if (!['review', 'unpaid', 'paid', 'not_applicable'].includes(input.status)) throw new Error('Choose a valid cashback status.');
   const notes = String(input.notes || '').trim();

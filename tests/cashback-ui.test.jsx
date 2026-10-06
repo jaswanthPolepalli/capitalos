@@ -155,3 +155,41 @@ it('opens a selected historical paid transaction through its peer link outside t
   expect(within(screen.getByRole('table',{name:'Cashback transactions'})).getByText('₹500')).toBeTruthy();
   expect(screen.getByRole('button',{name:'Edit cashback'})).toBeTruthy();
 });
+
+it('saves Needs review from an excluded peer, clears its link and persists in the review filter', async () => {
+  data.allocations = [data.allocations[0], {...data.allocations[0],id:'peer',cashback:{status:'review'}}];
+  await store.loadAll();
+  const user = open();
+  await user.selectOptions(screen.getByLabelText('Payment view'),'cashback');
+  await user.selectOptions(screen.getByLabelText('Cashback filter'),'CB_NA');
+  await user.click(screen.getByRole('button',{name:'Manage cashback'}));
+  const dialog=screen.getByRole('dialog');
+  expect(within(dialog).getByText(/Choosing Needs review clears the unpaid selection/)).toBeTruthy();
+  await user.selectOptions(screen.getByLabelText('Cashback status'),'review');
+  await user.click(screen.getByRole('button',{name:'Save cashback'}));
+  await user.click(await screen.findByRole('button',{name:'Done'}));
+  await act(async()=>{await store.loadAll();});
+  await user.selectOptions(screen.getByLabelText('Cashback filter'),'CB_REVIEW');
+  const table=screen.getByRole('table',{name:'Cashback transactions'});
+  expect(within(table).getAllByText('Needs review')).toHaveLength(2);
+  expect(within(table).queryByRole('link',{name:'View selected cashback transaction'})).toBeNull();
+});
+
+it('explains why a paid peer cannot return to review and links to the payment without saving', async () => {
+  data.allocations = [{...data.allocations[0],cashback:{status:'paid',amountRupees:500,paidDate:'2025-01-03'}}, {...data.allocations[0],id:'peer',cashback:{status:'review'}}];
+  await store.loadAll();
+  const user = open();
+  await user.selectOptions(screen.getByLabelText('Payment view'),'cashback');
+  await user.selectOptions(screen.getByLabelText('Cashback filter'),'CB_NA');
+  await user.click(screen.getByRole('button',{name:'Manage cashback'}));
+  await user.selectOptions(screen.getByLabelText('Cashback status'),'review');
+  fetch.mockClear();
+  await user.click(screen.getByRole('button',{name:'Save cashback'}));
+  expect(screen.getByRole('alert').textContent).toContain('already paid');
+  expect(fetch).not.toHaveBeenCalled();
+  expect(screen.queryByText('Cashback status updated.')).toBeNull();
+  await user.click(within(screen.getByRole('dialog')).getByRole('link',{name:'View selected cashback transaction'}));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.getByRole('button',{name:'Edit cashback'})).toBeTruthy();
+  expect(store.getLedger().find(e=>e.eventType==='CASHBACK_PAID').amountRupees).toBe(500);
+});

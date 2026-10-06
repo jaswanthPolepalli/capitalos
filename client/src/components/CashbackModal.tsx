@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { cashbackStatus, validateCashback, type CashbackStatus } from '../../../functions/capitalos-api/cashback.mjs';
 import { businessToday } from '../lib/businessDates';
 import { buildProfitPaymentWhatsAppLink } from '../lib/whatsapp';
@@ -41,7 +42,7 @@ export function CashbackModal({ allocation, onClose }: { allocation: AllocationS
       </div> : <form className="modal__body" onSubmit={save}>
         <p><strong>{allocation.partner?.name}</strong> · {allocation.creditCard?.cardName || 'Card'}<br />Contribution: {allocation.receivedDate} · ₹{allocation.amountRupees.toLocaleString('en-IN')}</p>
         <p className="form-hint">Additional to regular profit. Choose one transaction on this card per calendar month by marking it unpaid or paid. Other transactions will show Not applicable.</p>
-        {allocation.cashbackSelectedAllocationId && allocation.cashbackSelectedAllocationId !== allocation.id && <p className="form-hint">{allocation.cashbackSelectionStatus === 'paid' ? 'Cashback is already paid on the linked transaction. Correct that payment before changing the selection.' : 'Marking this transaction unpaid will move the cashback selection here.'}</p>}
+        {allocation.cashbackSelectedAllocationId && allocation.cashbackSelectedAllocationId !== allocation.id && <p className="form-hint">{allocation.cashbackSelectionStatus === 'paid' ? 'Cashback is already paid on the linked transaction. Correct that payment before changing the selection or returning to Needs review.' : 'Marking this transaction unpaid will move the cashback selection here. Choosing Needs review clears the unpaid selection for this card and month; automatically excluded transactions return to review.'}{' '}<Link to={`/pending-profits?cashback=${encodeURIComponent(allocation.cashbackSelectedAllocationId)}`} onClick={onClose}>View selected cashback transaction</Link></p>}
         <div className="form-field"><label className="form-label" htmlFor="cashback-status">Cashback status</label><select id="cashback-status" className="form-input" value={status} onChange={e => setStatus(e.target.value as CashbackStatus)} disabled={saving}>
           <option value="review">Needs review</option><option value="unpaid">Cashback unpaid</option><option value="paid">Paid to partner</option><option value="not_applicable">Not applicable</option>
         </select></div>
