@@ -170,3 +170,15 @@ it('includes both transactions in email/PDF follow-up after review resets an unp
   expect(report.cb.map(row=>row.status)).toEqual(['review','review']);
   expect(report.activity.cashback).toBe(0);
 });
+
+it('keeps unpaid follow-up and totals consistent after a separate additional cashback payment', async () => {
+  const s=seed();s.COS_Allocations[0].cashback_data=JSON.stringify({status:'unpaid',updatedAt:'2026-10-06T00:00:00Z'});
+  s.COS_Allocations.push({...s.COS_Allocations[0],ROWID:'extra',cashback_data:undefined},{...s.COS_Allocations[0],ROWID:'peer',cashback_data:undefined});
+  const h=createApiHarness(s);
+  const before=buildDailySummary(dataset(h.db),window);
+  expect((await h.request('PATCH','allocations/extra/cashback',{status:'paid',amountRupees:500,paidDate:window.date})).status).toBe('success');
+  const after=buildDailySummary(dataset(h.db),window);
+  expect(after.cb).toEqual(before.cb);
+  expect(after.rows).toEqual(before.rows.map(row=>({...row,last:window.date})));
+  expect(after.activity.cashback).toBe(500);
+});

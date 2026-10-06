@@ -30,6 +30,7 @@ export interface CapitalAllocation {
   cashbackEligibility?: string;
   cashbackSelectedAllocationId?: string | null;
   cashbackSelectionStatus?: string | null;
+  cashbackOtherPaidAllocationIds?: string[];
   cashbackSelectionUpdatedAt?: string | null;
   combination?: Combination;
   id: string;
@@ -970,8 +971,8 @@ export async function deleteCreditCard(cardId: string): Promise<void> {
 }
 
 /** Save one cashback settlement without touching principal or regular profit. */
-export async function updateCashback(id: string, cashback: Cashback, sendEmail = false): Promise<CapitalAllocation> {
-  const updated = await apiPatch<CapitalAllocation>(`allocations/${id}/cashback`, { ...cashback, sendEmail });
+export async function updateCashback(id: string, cashback: Cashback, sendEmail = false, confirmedCashbackAllocationIds: string[] = []): Promise<CapitalAllocation> {
+  const updated = await apiPatch<CapitalAllocation>(`allocations/${id}/cashback`, { ...cashback, sendEmail, confirmedCashbackAllocationIds });
   allocations = allocations.map(a => a.id === id ? updated : a);
   notify();
   return updated;

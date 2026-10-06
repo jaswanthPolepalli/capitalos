@@ -193,3 +193,33 @@ it('explains why a paid peer cannot return to review and links to the payment wi
   expect(screen.getByRole('button',{name:'Edit cashback'})).toBeTruthy();
   expect(store.getLedger().find(e=>e.eventType==='CASHBACK_PAID').amountRupees).toBe(500);
 });
+
+it('warns before additional cashback, saves only after confirmation and keeps both payments visible after reload', async () => {
+  data.allocations=[{...data.allocations[0],cashback:{status:'paid',amountRupees:500,paidDate:businessToday()}},{...data.allocations[0],id:'extra',cashback:{status:'review'}},{...data.allocations[0],id:'peer',cashback:{status:'review'}}];
+  await store.loadAll();
+  const user=open();
+  await user.selectOptions(screen.getByLabelText('Payment view'),'cashback');
+  await user.selectOptions(screen.getByLabelText('Cashback filter'),'CB_NA');
+  await user.click(screen.getAllByRole('button',{name:'Manage cashback'})[0]);
+  await user.selectOptions(screen.getByLabelText('Cashback status'),'paid');
+  expect(screen.getByText(/Cashback is already paid for this card/)).toBeTruthy();
+  expect(screen.getByRole('link',{name:'View existing cashback transaction 1'}).getAttribute('href')).toContain('cashback=a0');
+  await user.type(screen.getByLabelText('Cashback amount (₹)'),'700');
+  fetch.mockClear();
+  await user.click(screen.getByRole('button',{name:'Save cashback'}));
+  expect(screen.getByRole('alert').textContent).toContain('confirm this additional cashback');
+  expect(fetch).not.toHaveBeenCalled();
+  await user.click(screen.getByLabelText('I confirm this additional cashback payment'));
+  await user.click(screen.getByRole('button',{name:'Save cashback'}));
+  await user.click(await screen.findByRole('button',{name:'Done'}));
+  await act(async()=>{await store.loadAll();});
+  const summaries=store.getAllocationSummaries();
+  expect(summaries.find(a=>a.id==='peer').cashbackEligibility).toBe('not_applicable');
+  await user.selectOptions(screen.getByLabelText('Cashback filter'),'CB_PAID');
+  const table=screen.getByRole('table',{name:'Cashback transactions'});
+  expect(within(table).getAllByText('Cashback paid', {selector:'span'})).toHaveLength(2);
+  expect(within(table).getByText('₹500')).toBeTruthy();expect(within(table).getByText('₹700')).toBeTruthy();
+  expect(store.getLedger().filter(e=>e.eventType==='CASHBACK_PAID')).toHaveLength(2);
+  expect(store.getPartnerSummaries()[0].totalCashbackPaid).toBe(1200);
+  expect(buildStatement(store.getLedger(),'p','2025-01-01',businessToday()).cashbackPaid).toBe(1200);
+});

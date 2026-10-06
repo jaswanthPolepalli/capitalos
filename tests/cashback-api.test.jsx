@@ -123,3 +123,50 @@ it('rejects a peer review reset when cashback is paid without changing data or r
   expect(result.message).toContain('already paid');
   expect(h.db).toEqual(before);
 });
+
+it('requires confirmation for additional cashback and preserves every other raw and displayed status', async () => {
+  const data = seed(); data.COS_Partners[0].email = 'partner@example.test';
+  data.COS_Allocations[0].cashback_data = JSON.stringify(payment);
+  data.COS_Allocations.push({...data.COS_Allocations[0],ROWID:'extra',cashback_data:undefined}, {...data.COS_Allocations[0],ROWID:'peer',cashback_data:JSON.stringify({status:'review'})});
+  const sendMail = vi.fn().mockResolvedValue({}); const h = createApiHarness(data,undefined,sendMail);
+  const before=(await h.request('GET','allocations')).data;
+  const raw=structuredClone(h.db);
+  for (const confirmedCashbackAllocationIds of [undefined,[],['wrong'],['a','wrong']]) {
+    expect((await h.request('PATCH','allocations/extra/cashback',{...payment,sendEmail:true,confirmedCashbackAllocationIds})).status).toBe('error');
+    expect(h.db).toEqual(raw);
+  }
+  expect(sendMail).not.toHaveBeenCalled();
+  expect((await h.request('PATCH','allocations/extra/cashback',{...payment,amountRupees:700,confirmedCashbackAllocationIds:['a']})).status).toBe('success');
+  const after=(await h.request('GET','allocations')).data;
+  for(const old of before.filter(a=>a.id!=='extra')) {
+    const row=after.find(a=>a.id===old.id);
+    expect(cashbackStatus(row)).toBe(cashbackStatus(old));
+    expect(row.cashback).toEqual(old.cashback);
+    expect(h.db.COS_Allocations.find(a=>a.ROWID===old.id)).toEqual(raw.COS_Allocations.find(a=>a.ROWID===old.id));
+  }
+  expect(after.filter(a=>cashbackStatus(a)==='paid')).toHaveLength(2);
+  expect(after.find(a=>a.id==='extra').cashback).toMatchObject({individualStatus:true,amountRupees:700});
+  expect(sendMail).not.toHaveBeenCalled();
+  // Editing/correcting this additional payment affects only that record.
+  expect((await h.request('PATCH','allocations/extra/cashback',{...payment,amountRupees:800})).status).toBe('success');
+  expect((await h.request('PATCH','allocations/extra/cashback',{status:'review'})).status).toBe('success');
+  const corrected=(await h.request('GET','allocations')).data;
+  expect(Object.fromEntries(corrected.map(a=>[a.id,cashbackStatus(a)]))).toEqual({a:'paid',extra:'review',peer:'not_applicable'});
+});
+
+it('keeps an unpaid selection when a different transaction is recorded as paid', async () => {
+  const data=seed();data.COS_Allocations[0].cashback_data=JSON.stringify({status:'unpaid',updatedAt:'2026-10-06T00:00:00Z'});
+  data.COS_Allocations.push({...data.COS_Allocations[0],ROWID:'extra',cashback_data:undefined},{...data.COS_Allocations[0],ROWID:'peer',cashback_data:undefined});
+  const h=createApiHarness(data);
+  expect((await h.request('PATCH','allocations/extra/cashback',payment)).status).toBe('success');
+  expect(Object.fromEntries((await h.request('GET','allocations')).data.map(a=>[a.id,cashbackStatus(a)]))).toEqual({a:'unpaid',extra:'paid',peer:'not_applicable'});
+});
+
+it('rechecks all other paid transactions instead of accepting a stale confirmation', async () => {
+  const data=seed();data.COS_Allocations[0].cashback_data=JSON.stringify(payment);
+  data.COS_Allocations.push({...data.COS_Allocations[0],ROWID:'another'}, {...data.COS_Allocations[0],ROWID:'extra',cashback_data:undefined});
+  const h=createApiHarness(data);
+  expect((await h.request('PATCH','allocations/extra/cashback',{...payment,confirmedCashbackAllocationIds:['a']})).status).toBe('error');
+  expect((await h.request('PATCH','allocations/extra/cashback',{...payment,confirmedCashbackAllocationIds:['another','a']})).status).toBe('success');
+  expect((await h.request('GET','allocations')).data.filter(a=>cashbackStatus(a)==='paid')).toHaveLength(3);
+});

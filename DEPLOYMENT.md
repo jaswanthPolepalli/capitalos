@@ -1,5 +1,7 @@
 # CapitalOS — Deployment & Project Reference
 
+**Latest release — 6 October 2026:** Additional paid cashback for the same card/month now requires confirmation and preserves all other transaction statuses. Every paid entry stays visible and counts in totals. API, daily worker and frontend deployed after a fresh 627-record backup, recovery restoration and rollback rehearsal, 847 tests and hosted/browser checks. See [release evidence and rollback](docs/deployment-additional-cashback-2026-10-06.md).
+
 **Latest hotfix — 6 October 2026:** Choosing Needs review on an excluded cashback transaction now clears its card/month’s unpaid selection. Paid selections show an actionable error and payment link. API, daily worker and frontend deployed after a fresh 623-record backup, verified recovery restoration and rollback rehearsal, 841 tests and hosted/browser checks. See [release evidence and rollback](docs/deployment-cashback-review-reset-2026-10-06.md).
 
 **Latest release — 6 October 2026:** Cashback now uses one manually selected transaction per card/calendar month. Unselected entries start Needs review; selecting Unpaid/Paid makes peers Not applicable with links to the selected transaction. API, daily worker and frontend deployed after a fresh 611-record backup, recovery-project restoration, rollback rehearsal, 834 tests and hosted/browser checks. See [release evidence and rollback](docs/deployment-manual-cashback-2026-10-06.md).

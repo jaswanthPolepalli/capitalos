@@ -36,9 +36,9 @@ it('keeps an existing choice when an excluded peer is manually marked not applic
   expect(saved.selectionUpdatedAt).toBeUndefined();
   expect(statuses([rows[0]!,{...rows[1]!,cashback:saved}])).toEqual({a:'unpaid',b:'not_applicable'});
 });
-it('keeps financial history for conflicting legacy payments while exposing only one selected transaction',()=>{
+it('shows every legacy payment as paid while retaining one default monthly selection',()=>{
   const rows=monthlyCashback([transaction('a','2026-09-01','c',{status:'paid',amountRupees:100,paidDate:'2026-09-03'}),transaction('b','2026-09-02','c',{status:'paid',amountRupees:200,paidDate:'2026-09-03'})]);
-  expect(rows.filter(a=>cashbackStatus(a)==='paid')).toHaveLength(1);
+  expect(rows.filter(a=>cashbackStatus(a)==='paid')).toHaveLength(2);
   expect(cashbackTotals(rows).totalCashbackPaid).toBe(300);
 });
 
@@ -54,4 +54,14 @@ it('clears an unpaid choice from a peer without reviving old choices or changing
 it('returns a standalone manually excluded transaction to review',()=>{
   const row=transaction('a','2026-09-01','c',{status:'not_applicable'});
   expect(statuses([{...row,cashback:prepareCashback({status:'review'},monthlyCashback([row])[0]!,'2026-10-06')}])).toEqual({a:'review'});
+});
+
+it('keeps review peers unchanged when only independent cashback payments remain',()=>{
+  const rows=[transaction('paid','2026-09-01','c',{status:'paid',amountRupees:500,paidDate:'2026-09-03',individualStatus:true}),transaction('next'),transaction('review'),transaction('other-month','2026-10-01'),transaction('other-card','2026-09-01','d')];
+  const next=monthlyCashback(rows).find(a=>a.id==='next')!;
+  expect(next.cashbackOtherPaidAllocationIds).toEqual(['paid']);
+  const saved=prepareCashback({status:'paid',amountRupees:200,paidDate:'2026-09-03',confirmedCashbackAllocationIds:['paid']},next,'2026-10-06');
+  expect(statuses(rows.map(a=>a.id==='next'?{...a,cashback:saved}:a))).toEqual({paid:'paid',next:'paid',review:'review','other-month':'review','other-card':'review'});
+  expect(monthlyCashback(rows).find(a=>a.id==='other-month')?.cashbackOtherPaidAllocationIds).toEqual([]);
+  expect(monthlyCashback(rows).find(a=>a.id==='other-card')?.cashbackOtherPaidAllocationIds).toEqual([]);
 });
