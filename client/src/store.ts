@@ -1,4 +1,4 @@
-import { cashbackTotals } from '../../functions/capitalos-api/cashback.mjs';
+import { cashbackTotals, monthlyCashback } from '../../functions/capitalos-api/cashback.mjs';
 import type { Cashback } from '../../functions/capitalos-api/cashback.mjs';
 export type { Cashback };
 /**
@@ -27,6 +27,7 @@ export interface Partner {
 
 export interface CapitalAllocation {
   cashback?: Cashback;
+  cashbackEligibility?: string;
   combination?: Combination;
   id: string;
   partnerId: string;
@@ -449,7 +450,7 @@ export function parsePartialRemainingPercentFromNotes(notes: string): number | n
 
 export function getAllocationSummaries(): AllocationSummary[] {
   const today = new Date().toLocaleDateString('en-CA');
-  return allocations.map((a) => {
+  return monthlyCashback(allocations).map((a) => {
     const owner = allocations.find(parent => parent.combination?.sources.some(s => s.id === a.id));
     const transferred = !!owner && owner.receivedDate <= today;
     const future = a.receivedDate > today;

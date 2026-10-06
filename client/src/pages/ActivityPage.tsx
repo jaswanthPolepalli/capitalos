@@ -17,7 +17,7 @@ export function ActivityPage() {
     if (key === 'creditCardId' && (input === null || input === '')) return 'Cash / bank';
     if (input === undefined || input === null || input === '') return '—';
     if (key === 'amountRupees' || key === 'cashbackAmount') return typeof input === 'string' && input === 'Amount not recorded' ? input : money(Number(input));
-    if (key === 'cashbackStatus') return ({ paid: 'Paid to partner', unpaid: 'Not paid', review: 'Needs review', not_applicable: 'Not applicable' } as Record<string, string>)[String(input)] || String(input);
+    if (key === 'cashbackStatus') return ({ paid: 'Paid to partner', unpaid: 'Not paid', review: 'Needs review', not_applicable: 'Not applicable', not_first_transaction: 'Not first transaction' } as Record<string, string>)[String(input)] || String(input);
     if (key === 'profitPercent') return `${input}%`;
     if (key.endsWith('Date')) return formatDate(String(input));
     if (key === 'partnerId') return partners.find(p => p.id === String(input))?.name || `Partner ${input}`;

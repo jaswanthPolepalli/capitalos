@@ -15,7 +15,7 @@ beforeEach(async () => {
   sessionStorage.setItem('cos_role_unlocked', '1');
   data = {
     partners: [{ id: 'p', name: 'Test Partner', notes: '', phone: '', email: '' }],
-    allocations: ['unpaid', 'review', 'not_applicable'].map((status, i) => ({ id: `a${i}`, partnerId: 'p', amountRupees: 10000, profitPercent: 3, receivedDate: '2025-01-01', returnDate: '2025-02-01', creditCardId: 'c', notes: '', ...(status !== 'review' ? { cashback: { status } } : {}) })),
+    allocations: ['unpaid', 'review', 'not_applicable'].map((status, i) => ({ id: `a${i}`, partnerId: 'p', amountRupees: 10000, profitPercent: 3, receivedDate: `2025-0${i + 1}-01`, returnDate: '2025-02-01', creditCardId: 'c', notes: '', ...(status !== 'review' ? { cashback: { status } } : {}) })),
     'capital-returns': [{ id: 'r', allocationId: 'a0', partnerId: 'p', amountRupees: 10000, returnedDate: '2025-02-01', notes: '' }],
     'profit-records': [], 'credit-cards': [{ id: 'c', cardName: 'Test Card', partnerId: 'p', notes: '' }],
   };
@@ -107,4 +107,24 @@ it('combines recorded earnings at allocation, partner, portfolio and statement l
   expect(store.getPartnerSummaries()[0]).toMatchObject({ totalProfitPaid: 300, totalCashbackPaid: 500, totalProfitsReceived: 800 });
   expect(store.getPortfolioTotals()).toMatchObject({ totalProfitPaid: 300, totalCashbackPaid: 500, totalProfitsReceived: 800 });
   expect(buildStatement(store.getLedger(), 'p', '2025-01-01', businessToday())).toMatchObject({ profitPaid: 300, cashbackPaid: 500, totalProfitsReceived: 800 });
+});
+
+it('shows repeat card transactions only through their dedicated filter while retaining ordinary transactions', async () => {
+  data.allocations.push({ ...data.allocations[0], id: 'repeat', amountRupees: 12345, receivedDate: '2025-01-02', notes: 'Repeat purchase' });
+  await store.loadAll();
+  expect(store.getAllocationSummaries().find(a => a.id === 'repeat').cashbackEligibility).toBe('not_first_transaction');
+  expect(store.getLedger().some(e => e.allocationId === 'repeat')).toBe(true);
+  const user = open();
+  await user.selectOptions(screen.getByLabelText('Payment view'), 'cashback');
+  for (const filter of ['ALL', 'CB_UNPAID', 'CB_REVIEW', 'CB_NA', 'CB_PAID']) {
+    await user.selectOptions(screen.getByLabelText('Cashback filter'), filter);
+    const rows = within(screen.getByRole('table', { name: 'Cashback transactions' })).queryAllByText('₹12,345');
+    expect(rows).toHaveLength(0);
+  }
+  await user.selectOptions(screen.getByLabelText('Cashback filter'), 'CB_NOT_FIRST');
+  const table = screen.getByRole('table', { name: 'Cashback transactions' });
+  expect(within(table).getByText('₹12,345')).toBeTruthy();
+  expect(within(table).getByText('Not first transaction')).toBeTruthy();
+  expect(within(table).getAllByRole('row')).toHaveLength(2);
+  expect(within(table).queryByRole('button', { name: 'Manage cashback' })).toBeNull();
 });

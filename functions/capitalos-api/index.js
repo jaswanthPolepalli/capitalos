@@ -27,7 +27,7 @@
 
 const catalyst = require("zcatalyst-sdk-node");
 const persistence = require("./persistence.js");
-const { validateCashback } = require("./cashback.mjs");
+const { validateCashback, monthlyCashback } = require("./cashback.mjs");
 const nodemailer = require("nodemailer");
 const groupPayments = require('./group-payments.js');
 const groupPaymentEmail = require('./group-payment-email.js');
@@ -478,8 +478,9 @@ module.exports = async function(req, res) {
       const resource = resources[path];
       const [rows, context] = await Promise.all([fetchAllRows(req, resource.table), recordContext(req)]);
       const deleted = query.get('deleted') === 'true';
-      return ok(res, rows.filter(row => visibleRow(path, row, context).deleted === deleted)
-        .map(row => deleted ? mapRecoverable(resource, row, context, path) : resource.map(row)));
+      const mapped = rows.filter(row => visibleRow(path, row, context).deleted === deleted)
+        .map(row => deleted ? mapRecoverable(resource, row, context, path) : resource.map(row));
+      return ok(res, path === 'allocations' && !deleted ? monthlyCashback(mapped) : mapped);
     }
     if (path === 'activity' && method === 'GET') {
       const rows = await fetchAllRows(req, persistence.ACTIVITY_TABLE);
@@ -624,7 +625,7 @@ module.exports = async function(req, res) {
     if (path === "allocations") {
       if (method === "GET") {
         var rows = await fetchAllRows(req, TABLES.ALLOCATIONS);
-        return ok(res, rows.filter(function(r) { return !isDeleted(r.notes); }).map(mapAllocation));
+        return ok(res, monthlyCashback(rows.filter(function(r) { return !isDeleted(r.notes); }).map(mapAllocation)));
       }
       if (method === "POST") {
         var body = await readBody(req);
@@ -644,7 +645,7 @@ module.exports = async function(req, res) {
           notes: String(body.notes || "").trim(),
           cashback_data: JSON.stringify({ status: body.creditCardId ? 'unpaid' : 'not_applicable', notes: '' }),
         });
-        var mappedAlloc = mapAllocation(inserted);
+        var mappedAlloc = monthlyCashback((await fetchAllRows(req, TABLES.ALLOCATIONS)).filter(r => !isDeleted(r.notes)).map(mapAllocation)).find(a => a.id === String(inserted.ROWID));
         // Fire-and-forget email — does not block the response
         sendPartnerEmail(
           req,
@@ -664,7 +665,7 @@ module.exports = async function(req, res) {
       const row = context.allocations.find(r => String(r.ROWID) === cashbackMatch[1]);
       if (!row) return notFound(res);
       if (visibleRow('allocations', row, context).deleted) return badRequest(res, 'Restore this contribution and its partner before editing cashback.');
-      const allocation = mapAllocation(row);
+      const allocation = monthlyCashback(context.allocations.filter(r => !visibleRow('allocations', r, context).deleted).map(mapAllocation)).find(a => a.id === String(row.ROWID));
       let cashback;
       try { cashback = validateCashback(body, allocation, new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })); }
       catch (error) { return badRequest(res, error.message); }

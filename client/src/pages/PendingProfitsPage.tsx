@@ -325,13 +325,13 @@ export function PendingProfitsPage() {
 
   const cashbackEntries = useMemo(() => {
     const { start, end } = getMonthBounds(monthOffset);
-    const statuses: Record<string, string> = { CB_UNPAID: 'unpaid', CB_PAID: 'paid', CB_NA: 'not_applicable', CB_REVIEW: 'review' };
+    const statuses: Record<string, string> = { CB_UNPAID: 'unpaid', CB_PAID: 'paid', CB_NA: 'not_applicable', CB_REVIEW: 'review', CB_NOT_FIRST: 'not_first_transaction' };
     const q = searchQuery.trim().toLowerCase();
     return allocationSummaries.filter(a => a.creditCardId && !a.combination)
       .filter(a => filterSource !== 'CASH' && (filterPartnerId === 'ALL' || a.partnerId === filterPartnerId))
       .filter(a => !q || [a.partner?.name, a.creditCard?.cardName, a.notes, a.cashback?.notes, String(a.amountRupees), cashbackLabels[cashbackStatus(a)]].some(v => v?.toLowerCase().includes(q)))
-      .filter(a => cashbackFilter === 'ALL' ? cashbackStatus(a) !== 'not_applicable' : cashbackStatus(a) === statuses[cashbackFilter])
-      .filter(a => a.cashback?.status !== 'paid' || (a.cashback.paidDate >= start && a.cashback.paidDate <= end))
+      .filter(a => cashbackFilter === 'ALL' ? !['not_applicable', 'not_first_transaction'].includes(cashbackStatus(a)) : cashbackStatus(a) === statuses[cashbackFilter])
+      .filter(a => cashbackFilter === 'CB_NOT_FIRST' || a.cashback?.status !== 'paid' || (a.cashback.paidDate >= start && a.cashback.paidDate <= end))
       .sort((a, b) => a.receivedDate.localeCompare(b.receivedDate));
   }, [allocationSummaries, filterSource, filterPartnerId, searchQuery, cashbackFilter, monthOffset]);
 
@@ -509,7 +509,7 @@ export function PendingProfitsPage() {
               <option value="ALL">All profits</option><option value="UNPAID">Unpaid only</option><option value="PAID">Paid only</option>
             </select></label>}
             {showCashback && <label className="profit-filter-label">Filter cashback<select aria-label="Cashback filter" className="select-filter__control" value={cashbackFilter} onChange={e => setCashbackFilter(e.target.value)}>
-              <option value="ALL">All applicable cashback</option><option value="CB_UNPAID">Cashback not paid</option><option value="CB_PAID">Cashback paid</option><option value="CB_NA">Cashback not applicable</option><option value="CB_REVIEW">Cashback needs review</option>
+              <option value="ALL">All applicable cashback</option><option value="CB_UNPAID">Cashback not paid</option><option value="CB_PAID">Cashback paid</option><option value="CB_NA">Cashback not applicable</option><option value="CB_REVIEW">Cashback needs review</option><option value="CB_NOT_FIRST">Not first transaction</option>
             </select></label>}
             <div className="profit-month-control" style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <button className="icon-button" type="button" onClick={() => setMonthOffset((o) => o - 1)} aria-label="Previous month">

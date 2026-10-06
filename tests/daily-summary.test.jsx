@@ -140,3 +140,21 @@ describe('daily email delivery', () => {
     report.rows = []; report.cb = []; expect((await renderDailySummary(report)).length).toBeGreaterThan(1000);
   });
 });
+
+it('omits repeat card transactions from cashback follow-up without dropping capital', () => {
+  const s = seed();
+  s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'repeat', received_date: '2026-01-02', cashback_data: JSON.stringify({ status: 'unpaid' }) });
+  const report = buildDailySummary(dataset(s), window);
+  expect(report.cb).toHaveLength(1);
+  expect(report.cb[0].date).toBe('2026-01-01');
+  expect(report.rows[0].amount).toBe(19000);
+});
+
+it('uses original creation time for same-day imported transactions in email follow-up', () => {
+  const s = seed();
+  Object.assign(s.COS_Allocations[0], { CREATEDTIME: '2026-09-01T00:00:00Z', source_created_time: '2026-01-01T02:00:00Z' });
+  s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'earlier', amount_rupees: 12000, CREATEDTIME: '2026-09-02T00:00:00Z', source_created_time: '2026-01-01T01:00:00Z' });
+  const report = buildDailySummary(dataset(s), window);
+  expect(report.cb).toHaveLength(1);
+  expect(report.cb[0].amount).toBe(12000);
+});

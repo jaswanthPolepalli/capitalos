@@ -1,5 +1,7 @@
 # CapitalOS — Deployment & Project Reference
 
+**Latest cashback release — 6 October 2026:** Only the first card transaction each calendar month qualifies. Repeat transactions appear under **Not first transaction** and are excluded from normal cashback views and daily email follow-up. Deployed API, daily worker and frontend after a fresh 603-record backup, restoration into the existing recovery project, rollback rehearsal, 828 tests and hosted/browser checks. See [release evidence and rollback](docs/deployment-monthly-cashback-2026-10-06.md).
+
 **Latest frontend release — 6 October 2026:** Cards now open a compact transaction list with Date, Transaction type, Amount, Notes and monthly %, newest-first sorting and date/type/search filters. Deployed to Development after a fresh verified 600-record backup, isolated data restoration and rollback rehearsal, 820 tests and hosted/browser verification. See [release evidence and rollback](docs/deployment-card-transactions-2026-10-06.md).
 
 **Latest release — 6 October 2026:** Daily PDF summaries now use WhatsApp-confirmed due dates, show **Bill not generated** for missing/unconfirmed dates, and **Profit paid** for settled card profit. The API and daily worker are deployed to Development; the 11 PM IST schedule remains active. Fresh 592-record backup/restoration, isolated rollback rehearsal, 816 tests and hosted verification passed. See [release evidence and rollback](docs/deployment-daily-summary-2026-10-06.md).
@@ -50,7 +52,7 @@ This is a mandatory repository workflow rule, not an automated backup implementa
 
 ### One reusable backup project
 
-Use the existing CapitalOS business-use project and **one dedicated, reusable backup/recovery-test project**. Do not create a new project for each release. Reuse an existing verified recovery-test project; record its project ID and environment before use. The permanent backup project has not yet been designated or consolidated from the existing release-check projects.
+Use the existing CapitalOS business-use project and **one dedicated, reusable backup/recovery-test project**. Do not create a new project for each release. Reuse an existing verified recovery-test project; record its project ID and environment before use. The monthly cashback release reused `CapitalOS-Cards-Check`, Development project `71834000000073259`, after verifying and backing up its prior contents. Reuse this recovery project for subsequent releases subject to the same backup and no-unique-business-data checks; other historical check projects have not been consolidated or deleted.
 
 For each release:
 

@@ -1,4 +1,4 @@
-import { validateCashback } from '../../../functions/capitalos-api/cashback.mjs';
+import { validateCashback, monthlyCashback } from '../../../functions/capitalos-api/cashback.mjs';
 /**
  * mockFetch — intercepts all /server/capitalos-api/* fetch calls in dev mode.
  *
@@ -265,7 +265,7 @@ async function mockFetch(
     if (!row || state(table, row).deleted) return notFound('Active contribution not found');
     try {
       const body = JSON.parse(String(init?.body || '{}'));
-      const cashback = validateCashback(body, row as unknown as CapitalAllocation, businessToday());
+      const cashback = validateCashback(body, monthlyCashback(tableData.filter(r => !state(table, r).deleted) as unknown as CapitalAllocation[]).find(a => a.id === id)!, businessToday());
       const previous = (row as unknown as CapitalAllocation).cashback;
       cashback.updatedAt = new Date().toISOString();
       if (cashback.status === 'paid') cashback.createdAt = previous?.createdAt || cashback.updatedAt;

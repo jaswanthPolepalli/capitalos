@@ -71,3 +71,25 @@ it('accepts an unknown historical cashback amount, preserves paid status, and su
   await h.request('PATCH', 'allocations/a/cashback', { ...payment, amountRupees: 900 });
   expect((await h.request('GET', 'allocations')).data[0].cashback.amountRupees).toBe(900);
 });
+
+it('automatically excludes repeat transactions, rejects settlement, and recalculates after a date edit', async () => {
+  const h = createApiHarness(seed());
+  const input = { partnerId: 'p', amountRupees: 10000, profitPercent: 3, receivedDate: '2026-01-02', creditCardId: 'c' };
+  const repeat = (await h.request('POST', 'allocations', input)).data;
+  expect(cashbackStatus(repeat)).toBe('not_first_transaction');
+  expect(cashbackStatus((await h.request('GET', 'allocations')).data.find(a => a.id === repeat.id))).toBe('not_first_transaction');
+  expect((await h.request('PATCH', `allocations/${repeat.id}/cashback`, payment)).status).toBe('error');
+  await h.request('PATCH', `allocations/${repeat.id}`, { receivedDate: '2026-02-01' });
+  expect(cashbackStatus((await h.request('GET', 'allocations')).data.find(a => a.id === repeat.id))).toBe('unpaid');
+  await h.request('PATCH', `allocations/${repeat.id}`, { receivedDate: '2025-12-31' });
+  expect(cashbackStatus((await h.request('GET', 'allocations')).data.find(a => a.id === repeat.id))).toBe('unpaid');
+});
+
+it('does not email or record cashback for a repeat transaction even when email is requested', async () => {
+  const data = seed(); data.COS_Partners[0].email = 'partner@example.test';
+  data.COS_Allocations.push({ ...data.COS_Allocations[0], ROWID: 'repeat', received_date: '2026-01-02' });
+  const sendMail = vi.fn(); const h = createApiHarness(data, undefined, sendMail);
+  expect((await h.request('PATCH', 'allocations/repeat/cashback', { ...payment, sendEmail: true })).status).toBe('error');
+  expect(sendMail).not.toHaveBeenCalled();
+  expect(h.db.COS_Allocations[1].cashback_data).toBeUndefined();
+});

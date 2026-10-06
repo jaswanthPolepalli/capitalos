@@ -2,7 +2,7 @@
 const { createHash } = require('node:crypto');
 const { decode } = require('./combinations.mjs');
 const { pendingProfit, paymentMetadata } = require('./payment-groups.mjs');
-const { cashbackStatus } = require('./cashback.mjs');
+const { cashbackStatus, monthlyCashback } = require('./cashback.mjs');
 const { visibility } = require('./records.mjs');
 const { allRows } = require('./persistence.js');
 const { sendOnce } = require('./group-payment-email.js');
@@ -44,19 +44,19 @@ function buildDailySummary(data, window = dailyWindow()) {
       receivedDate: validDate(r.received_date), returnDate: r.return_date ? validDate(r.return_date) : null,
       dueDateConfirmed: (metadata?.notes ?? r.notes ?? '').includes('WA_CONFIRMED'),
       creditCardId: r.credit_card_id ? String(r.credit_card_id) : null, cashback,
-      ...(metadata ? { combination: metadata.combination } : {}), createdAt: r.CREATEDTIME || r.source_created_time };
+      ...(metadata ? { combination: metadata.combination } : {}), createdAt: (r.source_created_time || r.CREATEDTIME) ? new Date(r.source_created_time || r.CREATEDTIME).toISOString() : '' };
   }).filter(a => a.receivedDate <= window.date);
   const ids = new Set(allocations.map(a => a.id));
   const payments = (rows, type, dateKey, property) => rows.filter(r => visible(type, r) && ids.has(String(r.allocation_id))).map(r => ({
     id: String(r.ROWID), allocationId: String(r.allocation_id), partnerId: String(r.partner_id), amountRupees: money(r.amount_rupees),
-    [property]: validDate(r[dateKey]), notes: paymentMetadata(r.notes || '').notes, createdAt: r.CREATEDTIME || r.source_created_time,
+    [property]: validDate(r[dateKey]), notes: paymentMetadata(r.notes || '').notes, createdAt: (r.source_created_time || r.CREATEDTIME) ? new Date(r.source_created_time || r.CREATEDTIME).toISOString() : '',
   })).filter(r => r[property] <= window.date);
   const returns = payments(data.returns, 'capital-returns', 'returned_date', 'returnedDate');
   const profits = payments(data.profits, 'profit-records', 'paid_date', 'paidDate');
   const transferred = new Set(allocations.flatMap(a => a.combination?.sources.map(s => s.id) || []));
   const groups = new Map();
   const cashbackRows = [];
-  for (const a of allocations) {
+  for (const a of monthlyCashback(allocations)) {
     if (!a.creditCardId) continue;
     const card = cards.find(c => String(c.ROWID) === a.creditCardId && String(c.partner_id) === a.partnerId);
     const partner = partners.find(p => String(p.ROWID) === a.partnerId);

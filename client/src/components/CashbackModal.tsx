@@ -40,7 +40,7 @@ export function CashbackModal({ allocation, onClose }: { allocation: AllocationS
         <div className="modal__footer"><button className="button button--secondary" onClick={onClose}>Done</button></div>
       </div> : <form className="modal__body" onSubmit={save}>
         <p><strong>{allocation.partner?.name}</strong> · {allocation.creditCard?.cardName || 'Card'}<br />Contribution: {allocation.receivedDate} · ₹{allocation.amountRupees.toLocaleString('en-IN')}</p>
-        <p className="form-hint">Additional to regular profit. One editable cashback payment per transaction.</p>
+        <p className="form-hint">Additional to regular profit. Only the first transaction on each card per calendar month is eligible.</p>
         <div className="form-field"><label className="form-label" htmlFor="cashback-status">Cashback status</label><select id="cashback-status" className="form-input" value={status} onChange={e => setStatus(e.target.value as CashbackStatus)} disabled={saving}>
           <option value="review">Needs review</option><option value="unpaid">Not paid</option><option value="paid">Paid to partner</option><option value="not_applicable">Not applicable</option>
         </select></div>
