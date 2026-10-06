@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 
 import { getNavigationItem } from "../navigation/navigation";
 import { MobileNavigation } from "./MobileNavigation";
+import { DataStatus } from "../components/DataStatus";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -11,11 +12,8 @@ export function AppShell() {
   const reduceMotion = useReducedMotion();
   const activeItem = getNavigationItem(location.pathname);
 
-  // On mobile, hide the top bar on all pages except the Dashboard (Home)
-  const isHome = location.pathname === "/";
-
   return (
-    <div className={`app-shell${!isHome ? " app-shell--no-mobile-topbar" : ""}`}>
+    <div className="app-shell">
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -32,7 +30,7 @@ export function AppShell() {
             transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }}
           >
             <main className="page-content" id="main-content">
-              <Outlet />
+              <DataStatus><Outlet /></DataStatus>
             </main>
           </motion.div>
         </AnimatePresence>

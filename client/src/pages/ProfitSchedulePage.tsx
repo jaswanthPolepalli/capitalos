@@ -1,3 +1,4 @@
+import { EarningsSummary } from '../components/EarningsSummary';
 import {
   CalendarClock,
   CheckCircle2,
@@ -239,6 +240,7 @@ export function ProfitSchedulePage() {
         </div>
       </div>
 
+      <EarningsSummary allocations={filtered} regularProfit={totalPaid} />
       {/* Per-allocation accrual table */}
       <section aria-labelledby="accrual-title">
         <h2 id="accrual-title" style={{ fontSize: 14, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
@@ -254,7 +256,7 @@ export function ProfitSchedulePage() {
                 <th className="table-th">Since</th>
                 <th className="table-th">Return date</th>
                 <th className="table-th table-th--money">Profit accrued</th>
-                <th className="table-th table-th--money">Profit paid</th>
+                <th className="table-th table-th--money">Regular profit paid</th><th className="table-th table-th--money">Cashback paid</th><th className="table-th table-th--money">Total profits received</th>
                 <th className="table-th table-th--money">Pending</th>
                 <th className="table-th table-th--action"><span className="sr-only">Pay</span></th>
               </tr>
@@ -262,7 +264,7 @@ export function ProfitSchedulePage() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={11}>
                     <div className="table-empty">
                       <span className="empty-state__icon"><TrendingUp size={22} /></span>
                       <h3>No allocations</h3>
@@ -296,7 +298,7 @@ export function ProfitSchedulePage() {
                     </td>
                     <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }}>
                       {fmt(a.totalProfitPaid)}
-                    </td>
+                    </td><td className="table-cell table-cell--money" data-label="Cashback paid">{a.creditCardId ? a.unknownCashbackCount ? 'Amount not recorded' : fmt(a.totalCashbackPaid) : '—'}</td><td className="table-cell table-cell--money" data-label="Total profits received">{fmt(a.totalProfitsReceived)}{a.unknownCashbackCount > 0 && <small> + unrecorded cashback</small>}</td>
                      <td className="table-cell table-cell--money">
                       <span style={{ display: "flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}>
                         <strong style={{ color: a.profitPending > 0 ? "var(--pending)" : "var(--muted)" }}>
@@ -345,7 +347,7 @@ export function ProfitSchedulePage() {
           <h2 id="history-title" style={{ fontSize: 14, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
             Payment history
           </h2>
-          <div className="table-wrapper">
+      <div className="table-wrapper">
             <table className="data-table" aria-label="Profit payment history">
               <thead>
                 <tr>

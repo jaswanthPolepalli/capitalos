@@ -13,6 +13,9 @@ export function MobileNavigation() {
   const location = useLocation();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const navRef = useRef<HTMLElement>(null);
   const primaryItems = navigationItems.filter((item) =>
     mobilePrimaryPaths.includes(item.path),
   );
@@ -27,6 +30,10 @@ export function MobileNavigation() {
       return;
     }
 
+    const workspace = document.querySelector<HTMLElement>(".app-shell");
+    const wasInert = workspace?.inert ?? false;
+    if (workspace) workspace.inert = true;
+    if (navRef.current) navRef.current.inert = true;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
@@ -35,19 +42,39 @@ export function MobileNavigation() {
       if (event.key === "Escape") {
         setIsDrawerOpen(false);
       }
+      if (event.key === "Tab") {
+        const focusable = drawerRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex="0"]');
+        if (!focusable?.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
     };
 
+    const desktop = window.matchMedia?.("(min-width: 768px)");
+    const closeOnDesktop = () => { if (desktop?.matches) setIsDrawerOpen(false); };
+    desktop?.addEventListener("change", closeOnDesktop);
     document.addEventListener("keydown", closeOnEscape);
 
     return () => {
       document.body.style.overflow = previousOverflow;
+      if (workspace) workspace.inert = wasInert;
+      if (navRef.current) navRef.current.inert = false;
+      moreButtonRef.current?.focus();
+      desktop?.removeEventListener("change", closeOnDesktop);
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [isDrawerOpen]);
 
   const navContent = (
     <>
-      <nav className="mobile-nav" aria-label="Mobile navigation">
+      <nav ref={navRef} className="mobile-nav" aria-label="Mobile navigation">
         {primaryItems.map((item) => {
           const Icon = item.icon;
 
@@ -66,6 +93,7 @@ export function MobileNavigation() {
           );
         })}
         <button
+          ref={moreButtonRef}
           aria-expanded={isDrawerOpen}
           className={`mobile-nav__link mobile-nav__more${isMoreActive ? " mobile-nav__link--active" : ""}`}
           onClick={() => setIsDrawerOpen(true)}
@@ -83,6 +111,7 @@ export function MobileNavigation() {
             <motion.button
               animate={{ opacity: 1 }}
               aria-label="Close navigation"
+              tabIndex={-1}
               className="mobile-drawer-backdrop"
               exit={{ opacity: 0 }}
               initial={{ opacity: 0 }}
@@ -90,6 +119,7 @@ export function MobileNavigation() {
               type="button"
             />
             <motion.aside
+              ref={drawerRef}
               animate={{ y: 0 }}
               aria-label="All CapitalOS sections"
               aria-modal="true"

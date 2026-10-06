@@ -1,42 +1,20 @@
-/**
- * ReportsPage — F6: Financial Summary Reports
- *
- * Three report types:
- *   1. Profit & Loss Summary (CFO net margin)
- *   2. Capital Flow Summary
- *   3. Outstanding Obligations
- *
- * Period selection: Monthly / Quarterly / Annual / Custom
- * Export: CSV download (in-browser, no server needed)
- */
-
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  BarChart2,
-  CalendarClock,
-  Download,
-  IndianRupee,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react";
-import { useMemo, useState } from "react";
-
+import { financialYearRange } from "../lib/businessDates";
+import { Download } from "lucide-react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "../components/PageHeader";
-import { PortfolioTrendCharts } from "../components/PortfolioTrendCharts";
+import { downloadCSV } from "../lib/csv";
 import { useStore } from "../useStore";
+import { SendSummaryEmail } from '../components/SendSummaryEmail';
 
-function fmt(rupees: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(rupees);
+function fmt(value: number): string {
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
 }
 
 // ─── Period types ─────────────────────────────────────────────────────────────
 
-type PeriodType = "monthly" | "quarterly" | "annual" | "custom";
+type PeriodType = "monthly" | "quarterly" | "annual" | "financial-year" | "custom" | "all";
 
 interface Period {
   type: PeriodType;
@@ -51,9 +29,10 @@ function getPeriodLabel(p: Period): string {
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   if (p.type === "monthly" && p.month) return `${months[p.month - 1]} ${p.year}`;
   if (p.type === "quarterly" && p.quarter) return `Q${p.quarter} ${p.year}`;
-  if (p.type === "annual") return `FY ${p.year}`;
+  if (p.type === "financial-year") return `FY ${p.year}–${p.year + 1} (Apr–Mar)`;
+  if (p.type === "annual") return `${p.year} (Jan–Dec)`;
   if (p.type === "custom" && p.from && p.to) return `${p.from} → ${p.to}`;
-  return "All time";
+  return p.type === "all" ? "All time" : "Select dates";
 }
 
 function getPeriodRange(p: Period): { from: string; to: string } | null {
@@ -68,6 +47,7 @@ function getPeriodRange(p: Period): { from: string; to: string } | null {
     const lastDay = new Date(p.year, endMonth, 0).getDate();
     return { from: `${p.year}-${pad(startMonth)}-01`, to: `${p.year}-${pad(endMonth)}-${lastDay}` };
   }
+  if (p.type === "financial-year") return financialYearRange(p.year);
   if (p.type === "annual") {
     return { from: `${p.year}-01-01`, to: `${p.year}-12-31` };
   }
@@ -87,23 +67,24 @@ function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Pe
   return (
     <div className="report-period-bar">
       <div className="report-period-tabs">
-        {(["monthly", "quarterly", "annual", "custom"] as PeriodType[]).map((t) => (
+        {(["monthly", "quarterly", "annual", "financial-year", "custom", "all"] as PeriodType[]).map((t) => (
           <button
             key={t}
             type="button"
             className={`report-tab${period.type === t ? " report-tab--active" : ""}`}
-            onClick={() => onChange({ ...period, type: t })}
+            onClick={() => onChange({ ...period, type: t, quarter: period.quarter ?? Math.ceil((new Date().getMonth() + 1) / 3) })}
           >
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === "financial-year" ? "Financial year" : t === "all" ? "All time" : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
 
       <div className="report-period-controls">
-        {period.type !== "custom" && (
+        {period.type !== "custom" && period.type !== "all" && (
           <select
             className="form-input"
             style={{ width: "auto", minWidth: 90 }}
+            aria-label="Year"
             value={period.year}
             onChange={(e) => onChange({ ...period, year: Number(e.target.value) })}
           >
@@ -114,6 +95,7 @@ function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Pe
           <select
             className="form-input"
             style={{ width: "auto", minWidth: 130 }}
+            aria-label="Month"
             value={period.month ?? new Date().getMonth() + 1}
             onChange={(e) => onChange({ ...period, month: Number(e.target.value) })}
           >
@@ -124,6 +106,7 @@ function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Pe
           <select
             className="form-input"
             style={{ width: "auto", minWidth: 80 }}
+            aria-label="Quarter"
             value={period.quarter ?? Math.ceil((new Date().getMonth() + 1) / 3)}
             onChange={(e) => onChange({ ...period, quarter: Number(e.target.value) })}
           >
@@ -136,6 +119,7 @@ function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Pe
               type="date"
               className="form-input"
               style={{ width: "auto" }}
+              aria-label="From date"
               value={period.from ?? ""}
               onChange={(e) => onChange({ ...period, from: e.target.value })}
             />
@@ -144,6 +128,7 @@ function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Pe
               type="date"
               className="form-input"
               style={{ width: "auto" }}
+              aria-label="To date"
               value={period.to ?? ""}
               onChange={(e) => onChange({ ...period, to: e.target.value })}
             />
@@ -154,375 +139,131 @@ function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Pe
   );
 }
 
-// ─── CSV Export ───────────────────────────────────────────────────────────────
-
-function downloadCSV(filename: string, rows: [string, string][]) {
-  const csv = rows.map(([k, v]) => `"${k}","${v}"`).join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// ─── Report card ──────────────────────────────────────────────────────────────
-
-function ReportRow({ label, value, color, bold }: { label: string; value: string; color?: string; bold?: boolean }) {
-  return (
-    <div className={`report-row${bold ? " report-row--total" : ""}`}>
-      <span className="report-row__label">{label}</span>
-      <span className="report-row__value" style={color ? { color } : undefined}>{value}</span>
-    </div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
 export function ReportsPage() {
-  const { ledger, allocationSummaries, partnerSummaries } = useStore();
+  const { ledger, partners, allocationSummaries, partnerSummaries } = useStore();
   const today = new Date();
-  const [period, setPeriod] = useState<Period>({
-    type: "monthly",
-    year: today.getFullYear(),
-    month: today.getMonth() + 1,
-  });
-
+  const [period, setPeriod] = useState<Period>({ type: "monthly", year: today.getFullYear(), month: today.getMonth() + 1, quarter: Math.ceil((today.getMonth() + 1) / 3) });
   const range = getPeriodRange(period);
-
-  // Filter ledger to period
-  const filteredLedger = useMemo(() => {
-    if (!range) return ledger;
-    return ledger.filter((e) => e.date >= range.from && e.date <= range.to);
-  }, [ledger, range]);
-
-  // ── Profit & Loss ──
-  const profitPaidInPeriod = filteredLedger
-    .filter((e) => e.eventType === "PROFIT_PAID")
-    .reduce((s, e) => s + e.amountRupees, 0);
-
-  // For this app, CEOs pay back profit to CFO — we don't have CEO_PROFIT_RECEIVED in this ledger model
-  // so we treat partner profit paid as the outflow, and capital received vs returned as the flow
-  const capitalReceivedInPeriod = filteredLedger
-    .filter((e) => e.eventType === "CAPITAL_RECEIVED")
-    .reduce((s, e) => s + e.amountRupees, 0);
-
-  const capitalReturnedInPeriod = filteredLedger
-    .filter((e) => e.eventType === "CAPITAL_RETURNED")
-    .reduce((s, e) => s + e.amountRupees, 0);
-
-  // ── Outstanding (always all-time, not period-filtered) ──
-  const totalCapitalOutstanding = allocationSummaries.reduce((s, a) => s + a.capitalOutstanding, 0);
-  const totalProfitPending = partnerSummaries.reduce((s, ps) => s + ps.totalProfitPending, 0);
-  const totalLiability = totalCapitalOutstanding + totalProfitPending;
-  const totalCapitalDeployed = allocationSummaries.reduce((s, a) => s + a.amountRupees, 0);
-  const totalProfitPaid = allocationSummaries.reduce((s, a) => s + a.totalProfitPaid, 0);
-
+  const invalidPeriod = period.type === "custom" && (!range || range.from > range.to);
   const periodLabel = getPeriodLabel(period);
-  const filename = `CapitalOS-Report-${periodLabel.replace(/\s+/g, "-").replace(/→/g, "to")}.csv`;
+  const entries = invalidPeriod ? [] : ledger.filter(e => !range || (e.date >= range.from && e.date <= range.to));
+  const sum = (type: string) => entries.filter(e => e.eventType === type).reduce((s, e) => s + e.amountRupees, 0);
+  const received = sum("CAPITAL_RECEIVED");
+  const returned = sum("CAPITAL_RETURNED");
+  const paid = sum("PROFIT_PAID");
+  const cashback = sum("CASHBACK_PAID");
+  const outstanding = allocationSummaries.reduce((s, a) => s + a.capitalOutstanding, 0);
+  const pending = partnerSummaries.reduce((s, p) => s + p.totalProfitPending, 0);
+  const partnerName = (id: string) => partners.find(p => p.id === id)?.name ?? id;
+  const breakdown = Array.from(new Set(entries.map(e => e.partnerId))).map(id => {
+    const events = entries.filter(e => e.partnerId === id);
+    const total = (type: string) => events.filter(e => e.eventType === type).reduce((s, e) => s + e.amountRupees, 0);
+    return { id, name: partnerName(id), received: total("CAPITAL_RECEIVED"), returned: total("CAPITAL_RETURNED"), paid: total("PROFIT_PAID"), cashback: total("CASHBACK_PAID") };
+  }).sort((a, b) => b.received - a.received || a.name.localeCompare(b.name));
 
-  function handleExportCSV() {
-    const rows: [string, string][] = [
-      ["Report", `CapitalOS Financial Summary — ${periodLabel}`],
-      ["Generated", new Date().toLocaleString("en-IN")],
-      ["", ""],
-      ["=== CAPITAL FLOW ===", ""],
-      ["Capital received (period)", fmt(capitalReceivedInPeriod)],
-      ["Capital returned (period)", fmt(capitalReturnedInPeriod)],
-      ["Net capital deployed (period)", fmt(capitalReceivedInPeriod - capitalReturnedInPeriod)],
-      ["", ""],
-      ["=== PROFIT OUTFLOW ===", ""],
-      ["Profit paid to partners (period)", fmt(profitPaidInPeriod)],
-      ["", ""],
-      ["=== OUTSTANDING OBLIGATIONS (all-time) ===", ""],
-      ["Total capital outstanding", fmt(totalCapitalOutstanding)],
-      ["Total profit pending", fmt(totalProfitPending)],
-      ["Total liability", fmt(totalLiability)],
-      ["", ""],
-      ["=== PORTFOLIO TOTALS (all-time) ===", ""],
-      ["Total capital deployed", fmt(totalCapitalDeployed)],
-      ["Total profit paid", fmt(totalProfitPaid)],
-    ];
-    downloadCSV(filename, rows);
+  // Use daily buckets for one month and monthly buckets for longer periods.
+  const daily = !!range && range.from.slice(0, 7) === range.to.slice(0, 7);
+  const buckets = new Map<string, { date: string; received: number; returned: number; paid: number; cashback: number }>();
+  const dates = entries.map(e => e.date).sort();
+  const first = range?.from ?? dates[0];
+  const last = range?.to ?? dates[dates.length - 1];
+  if (!invalidPeriod && first && last) {
+    const cursor = new Date(`${daily ? first : first.slice(0, 7) + "-01"}T12:00:00`);
+    const end = new Date(`${last}T12:00:00`);
+    while (cursor <= end) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}${daily ? "-" + String(cursor.getDate()).padStart(2, "0") : ""}`;
+      buckets.set(key, { date: key, received: 0, returned: 0, paid: 0, cashback: 0 });
+      if (daily) cursor.setDate(cursor.getDate() + 1);
+      else cursor.setMonth(cursor.getMonth() + 1);
+    }
+  }
+  for (const e of entries) {
+    const bucket = buckets.get(e.date.slice(0, daily ? 10 : 7));
+    if (!bucket) continue;
+    if (e.eventType === "CAPITAL_RECEIVED") bucket.received += e.amountRupees;
+    if (e.eventType === "CAPITAL_RETURNED") bucket.returned += e.amountRupees;
+    if (e.eventType === "PROFIT_PAID") bucket.paid += e.amountRupees;
+    if (e.eventType === "CASHBACK_PAID") bucket.cashback += e.amountRupees;
+  }
+  const ledgerUrl = `/ledger${range ? `?${new URLSearchParams({ from: range.from, to: range.to })}` : ""}`;
+
+  const unknownCashbackCount = entries.filter(e => e.amountUnknown).length;
+  function exportReport() {
+    downloadCSV(`CapitalOS-Report-${periodLabel.replace(/[^a-zA-Z0-9-]/g, "-")}.csv`, ["Section", "Period", "Partner / Metric", "Capital received (INR)", "Capital returned (INR)", "Profit paid (INR)", "Cashback shared (INR)", "Value (INR)"], [
+      ["Activity summary", periodLabel, "Total", received, returned, paid, cashback, ""],
+      ["Activity summary", periodLabel, "Total profits received", "", "", "", "", paid + cashback],
+      ["Activity summary", periodLabel, "Cashback amounts not recorded", "", "", "", "", unknownCashbackCount],
+      ["Activity summary", periodLabel, "Net capital received", "", "", "", "", received - returned],
+      ...breakdown.map(p => ["Partner activity", periodLabel, p.name, p.received, p.returned, p.paid, p.cashback, ""]),
+      ["Outstanding today", today.toLocaleDateString("en-IN"), "Capital outstanding", "", "", "", "", outstanding],
+      ["Outstanding today", today.toLocaleDateString("en-IN"), "Profit pending", "", "", "", "", pending],
+      ["Outstanding today", today.toLocaleDateString("en-IN"), "Total owed", "", "", "", "", outstanding + pending],
+    ]);
   }
 
   return (
     <div className="list-page">
-      <PageHeader
-        eyebrow="Financial reports"
-        title="Reports"
-        description="Period-wise summaries of capital flows, profit obligations, and portfolio health."
-        actions={
-          <button className="button button--secondary" type="button" onClick={handleExportCSV}>
-            <Download size={15} /> Export CSV
-          </button>
-        }
-      />
-
+      <PageHeader eyebrow="Financial reports" title="Reports" description="Capital activity and partner payments for your selected period."
+        actions={<button className="button button--secondary" type="button" onClick={exportReport} disabled={invalidPeriod}><Download size={15} /> Export report CSV</button>} />
+      <SendSummaryEmail />
+      {unknownCashbackCount > 0 && <p className="tools-hint">{unknownCashbackCount} cashback amount(s) not recorded. Totals include known amounts only.</p>}
       <PeriodSelector period={period} onChange={setPeriod} />
-
-      <div className="reports-grid">
-
-        {/* ── Capital Flow ── */}
-        <section className="report-card">
-          <div className="report-card__header">
-            <div className="report-card__icon-wrap" style={{ background: "var(--incoming-soft)" }}>
-              <IndianRupee size={16} style={{ color: "var(--incoming)" }} />
-            </div>
-            <div>
-              <h2>Capital Flow</h2>
-              <p className="report-card__sub">{periodLabel}</p>
-            </div>
-          </div>
-          <div className="report-card__body">
-            <ReportRow
-              label="Capital received from partners"
-              value={fmt(capitalReceivedInPeriod)}
-              color="var(--incoming)"
-            />
-            <ReportRow
-              label="Capital returned to partners"
-              value={fmt(capitalReturnedInPeriod)}
-              color="var(--outgoing)"
-            />
-            <div className="report-divider" />
-            <ReportRow
-              label="Net capital deployed (period)"
-              value={fmt(capitalReceivedInPeriod - capitalReturnedInPeriod)}
-              color={capitalReceivedInPeriod >= capitalReturnedInPeriod ? "var(--incoming)" : "var(--outgoing)"}
-              bold
-            />
-          </div>
-        </section>
-
-        {/* ── Profit Summary ── */}
-        <section className="report-card">
-          <div className="report-card__header">
-            <div className="report-card__icon-wrap" style={{ background: "var(--pending-soft, #fff3e0)" }}>
-              <TrendingUp size={16} style={{ color: "var(--pending)" }} />
-            </div>
-            <div>
-              <h2>Profit Outflow</h2>
-              <p className="report-card__sub">{periodLabel}</p>
-            </div>
-          </div>
-          <div className="report-card__body">
-            <ReportRow
-              label="Profit paid to partners"
-              value={fmt(profitPaidInPeriod)}
-              color="var(--outgoing)"
-            />
-            <div className="report-divider" />
-            <ReportRow
-              label="Total profit paid (all time)"
-              value={fmt(totalProfitPaid)}
-              color="var(--muted)"
-              bold
-            />
-          </div>
-        </section>
-
-        {/* ── Outstanding Obligations ── */}
-        <section className="report-card">
-          <div className="report-card__header">
-            <div className="report-card__icon-wrap" style={{ background: "var(--accent-soft)" }}>
-              <CalendarClock size={16} style={{ color: "var(--accent)" }} />
-            </div>
-            <div>
-              <h2>Outstanding Obligations</h2>
-              <p className="report-card__sub">All-time (as of today)</p>
-            </div>
-          </div>
-          <div className="report-card__body">
-            <ReportRow
-              label="Capital outstanding (owed to partners)"
-              value={fmt(totalCapitalOutstanding)}
-              color="var(--pending)"
-            />
-            <ReportRow
-              label="Profit pending (owed to partners)"
-              value={fmt(totalProfitPending)}
-              color="var(--outgoing)"
-            />
-            <div className="report-divider" />
-            <ReportRow
-              label="Total liability"
-              value={fmt(totalLiability)}
-              color="var(--outgoing)"
-              bold
-            />
-          </div>
-        </section>
-
-        {/* ── Portfolio Totals ── */}
-        <section className="report-card">
-          <div className="report-card__header">
-            <div className="report-card__icon-wrap" style={{ background: "var(--accent-soft)" }}>
-              <TrendingDown size={16} style={{ color: "var(--accent)" }} />
-            </div>
-            <div>
-              <h2>Portfolio Totals</h2>
-              <p className="report-card__sub">All-time since inception</p>
-            </div>
-          </div>
-          <div className="report-card__body">
-            <ReportRow
-              label="Total capital ever deployed"
-              value={fmt(totalCapitalDeployed)}
-            />
-            <ReportRow
-              label="Total capital outstanding"
-              value={fmt(totalCapitalOutstanding)}
-              color="var(--pending)"
-            />
-            <ReportRow
-              label="Total profit paid to partners"
-              value={fmt(totalProfitPaid)}
-              color="var(--outgoing)"
-            />
-            <div className="report-divider" />
-            <ReportRow
-              label="Active allocations"
-              value={String(allocationSummaries.filter((a) => !a.isFullyReturned).length)}
-              bold
-            />
-          </div>
-        </section>
-
-        {/* ── Per-Partner Breakdown ── */}
-        <section className="report-card report-card--wide">
-          <div className="report-card__header">
-            <div className="report-card__icon-wrap" style={{ background: "var(--incoming-soft)" }}>
-              <ArrowDownLeft size={16} style={{ color: "var(--incoming)" }} />
-            </div>
-            <div>
-              <h2>Per-Partner Breakdown</h2>
-              <p className="report-card__sub">Outstanding obligations by partner</p>
-            </div>
-          </div>
-          <div className="report-card__body">
-            {partnerSummaries.length === 0 ? (
-              <p style={{ color: "var(--muted)", fontSize: 13, padding: "12px 0" }}>No partner data available.</p>
-            ) : (
-              <div className="table-wrapper" style={{ border: 0, boxShadow: "none" }}>
-                <table className="data-table" aria-label="Per-partner breakdown">
-                  <thead>
-                    <tr>
-                      <th className="table-th">Partner</th>
-                      <th className="table-th table-th--money">Total capital</th>
-                      <th className="table-th table-th--money">Capital returned</th>
-                      <th className="table-th table-th--money">Outstanding</th>
-                      <th className="table-th table-th--money">Profit paid</th>
-                      <th className="table-th table-th--money">Profit pending</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {partnerSummaries.map((ps) => (
-                      <tr className="table-row" key={ps.partner.id}>
-                        <td className="table-cell">{ps.partner.name}</td>
-                        <td className="table-cell table-cell--money">{fmt(ps.totalCapital)}</td>
-                        <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }}>{fmt(ps.totalCapitalReturned)}</td>
-                        <td className="table-cell table-cell--money" style={{ color: "var(--pending)", fontWeight: 700 }}>{fmt(ps.capitalOutstanding)}</td>
-                        <td className="table-cell table-cell--money" style={{ color: "var(--muted)" }}>{fmt(ps.totalProfitPaid)}</td>
-                        <td className="table-cell table-cell--money" style={{ color: ps.totalProfitPending > 0 ? "var(--outgoing)" : "var(--muted)", fontWeight: 700 }}>{fmt(ps.totalProfitPending)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ borderTop: "2px solid var(--border)" }}>
-                      <td className="table-cell" style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>TOTAL</td>
-                      <td className="table-cell table-cell--money" style={{ fontWeight: 700 }}>{fmt(totalCapitalDeployed)}</td>
-                      <td className="table-cell table-cell--money" style={{ color: "var(--incoming)", fontWeight: 700 }}>{fmt(partnerSummaries.reduce((s, ps) => s + ps.totalCapitalReturned, 0))}</td>
-                      <td className="table-cell table-cell--money" style={{ color: "var(--pending)", fontWeight: 700 }}>{fmt(totalCapitalOutstanding)}</td>
-                      <td className="table-cell table-cell--money" style={{ color: "var(--muted)", fontWeight: 700 }}>{fmt(totalProfitPaid)}</td>
-                      <td className="table-cell table-cell--money" style={{ color: "var(--outgoing)", fontWeight: 700 }}>{fmt(totalProfitPending)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ── Transaction Activity ── */}
-        <section className="report-card report-card--wide">
-          <div className="report-card__header">
-            <div className="report-card__icon-wrap" style={{ background: "var(--accent-soft)" }}>
-              <ArrowUpRight size={16} style={{ color: "var(--accent)" }} />
-            </div>
-            <div>
-              <h2>Transaction Activity</h2>
-              <p className="report-card__sub">{periodLabel} — {filteredLedger.length} events</p>
-            </div>
-          </div>
-          <div className="report-card__body">
-            {filteredLedger.length === 0 ? (
-              <p style={{ color: "var(--muted)", fontSize: 13, padding: "12px 0" }}>No transactions in this period.</p>
-            ) : (
-              <div className="table-wrapper" style={{ border: 0, boxShadow: "none" }}>
-                <table className="data-table" aria-label="Transaction activity">
-                  <thead>
-                    <tr>
-                      <th className="table-th">Date</th>
-                      <th className="table-th">Type</th>
-                      <th className="table-th">Partner</th>
-                      <th className="table-th table-th--money">Amount</th>
-                      <th className="table-th">Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredLedger.slice(0, 50).map((e) => (
-                      <tr className="table-row" key={e.id}>
-                        <td className="table-cell table-cell--secondary">{e.date}</td>
-                        <td className="table-cell">
-                          <span className={`status-badge ${
-                            e.eventType === "CAPITAL_RECEIVED" ? "status-badge--active"
-                            : e.eventType === "CAPITAL_RETURNED" ? "status-badge--inactive"
-                            : "status-badge--pending"
-                          }`}>
-                            {e.eventType.replace(/_/g, " ")}
-                          </span>
-                        </td>
-                        <td className="table-cell" style={{ fontSize: 13 }}>
-                          {e.partnerId}
-                        </td>
-                        <td className="table-cell table-cell--money" style={{
-                          color: e.eventType === "CAPITAL_RECEIVED" ? "var(--incoming)"
-                            : e.eventType === "CAPITAL_RETURNED" ? "var(--muted)"
-                            : "var(--outgoing)",
-                          fontWeight: 600,
-                        }}>
-                          {e.eventType === "CAPITAL_RETURNED" || e.eventType === "PROFIT_PAID" ? "-" : "+"}{fmt(e.amountRupees)}
-                        </td>
-                        <td className="table-cell table-cell--secondary" style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {(e.notes || "").replace(/\s*WA_CONFIRMED\s*/g, "").trim() || "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {filteredLedger.length > 50 && (
-                  <p style={{ fontSize: 12, color: "var(--muted)", padding: "8px 12px" }}>
-                    Showing first 50 of {filteredLedger.length} transactions. Export CSV for full data.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </section>
-
-      </div>
-
-      {/* ── Portfolio Trend Charts — last 12 months, always shown ── */}
-      <div style={{ marginTop: 28 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <BarChart2 size={18} style={{ color: "var(--accent)" }} />
-          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Portfolio Trend Charts</h2>
-          <span style={{ fontSize: 12, color: "var(--muted)" }}>Last 12 months</span>
+      {invalidPeriod ? <p className="form-error" role="alert">Choose a start and end date, with the end on or after the start.</p> : <>
+        <div className="reports-grid">
+          {[{ label: "Capital received", value: received, color: "var(--incoming)" }, { label: "Capital returned", value: returned, color: "var(--pending)" }, { label: "Profit paid", value: paid, color: "var(--outgoing)" }, { label: "Cashback shared", value: cashback, color: "var(--outgoing)" }, { label: "Total profits received", value: paid + cashback, color: "var(--incoming)" }].map(item => (
+            <section className="report-card" key={item.label}>
+              <div className="report-card__header"><div><h2>{item.label}</h2><p className="report-card__sub">{periodLabel}</p></div></div>
+              <div className="report-card__body" style={{ fontSize: 26, fontWeight: 700, color: item.color }}>{fmt(item.value)}</div>
+            </section>
+          ))}
         </div>
-        <PortfolioTrendCharts />
-      </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between", margin: "16px 0 24px" }}>
+          <span style={{ color: "var(--muted)", fontSize: 13 }}>Net capital received: <strong>{fmt(received - returned)}</strong> · Received minus returned</span>
+          <Link className="entity-link" to={ledgerUrl}>View transactions ({entries.length}) →</Link>
+        </div>
+        <section className="report-card" style={{ marginBottom: 24 }}>
+          <div className="report-card__header"><div><h2>Capital and payment activity</h2><p className="report-card__sub">{periodLabel} · {daily ? "Daily" : "Monthly"} totals</p></div></div>
+          <div className="report-card__body">
+            {entries.length === 0 ? <p style={{ color: "var(--muted)" }}>No transactions in this period.</p> : <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={Array.from(buckets.values())} accessibilityLayer>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="date" tickFormatter={value => new Date(`${value.length === 7 ? value + "-01" : value}T12:00:00`).toLocaleDateString("en-IN", daily ? { day: "numeric", month: "short" } : { month: "short", year: "2-digit" })} tick={{ fontSize: 11 }} />
+                <YAxis width={70} tickFormatter={value => Math.abs(value) >= 100000 ? `₹${(value / 100000).toFixed(1)}L` : `₹${value}`} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={value => fmt(Number(value))} />
+                <Legend />
+                <Bar dataKey="received" name="Capital received" fill="var(--incoming)" />
+                <Bar dataKey="returned" name="Capital returned" fill="var(--pending)" />
+                <Bar dataKey="paid" name="Profit paid" fill="var(--outgoing)" />
+                <Bar dataKey="cashback" name="Cashback shared" fill="var(--accent)" />
+              </BarChart>
+            </ResponsiveContainer>}
+          </div>
+        </section>
+        <section className="report-card" style={{ marginBottom: 24 }}>
+          <div className="report-card__header"><div><h2>Partner activity</h2><p className="report-card__sub">{periodLabel} · Partners with transactions in this period</p></div></div>
+          <div className="table-wrapper" style={{ border: 0 }}>
+            <table className="data-table" aria-label="Partner activity">
+              <thead><tr><th className="table-th">Partner</th>{["Capital received", "Capital returned", "Profit paid", "Cashback shared", "Total profits received"].map(label => <th key={label} className="table-th table-th--money">{label}</th>)}</tr></thead>
+              <tbody>{breakdown.length === 0 ? <tr><td colSpan={6} className="table-cell">No partner activity in this period.</td></tr> : breakdown.map(p => <tr key={p.id} className="table-row">
+                <td className="table-cell"><Link className="entity-link" to={`/partners/${p.id}`}>{p.name}</Link></td>
+                <td className="table-cell table-cell--money" data-label="Capital received">{fmt(p.received)}</td>
+                <td className="table-cell table-cell--money" data-label="Capital returned">{fmt(p.returned)}</td>
+                <td className="table-cell table-cell--money" data-label="Profit paid">{fmt(p.paid)}</td>
+                <td className="table-cell table-cell--money" data-label="Cashback shared">{fmt(p.cashback)}</td><td className="table-cell table-cell--money" data-label="Total profits received">{fmt(p.paid + p.cashback)}</td>
+              </tr>)}</tbody>
+              {breakdown.length > 0 && <tfoot><tr><td className="table-cell"><strong>Total</strong></td>{[received, returned, paid, cashback, paid + cashback].map((value, i) => <td key={i} className="table-cell table-cell--money" data-label={["Capital received", "Capital returned", "Profit paid", "Cashback shared", "Total profits received"][i]}><strong>{fmt(value)}</strong></td>)}</tr></tfoot>}
+            </table>
+          </div>
+        </section>
+      </>}
+      <section className="report-card">
+        <div className="report-card__header"><div><h2>Outstanding today</h2><p className="report-card__sub">{today.toLocaleDateString("en-IN")} · Current balances; unaffected by the period filter</p></div></div>
+        <div className="report-card__body reports-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+          <div><Link className="entity-link" to="/return-obligations">Capital outstanding →</Link><p style={{ fontSize: 22, fontWeight: 700, marginBottom: 0 }}>{fmt(outstanding)}</p></div>
+          <div><Link className="entity-link" to="/pending-profits">Profit pending →</Link><p style={{ fontSize: 22, fontWeight: 700, marginBottom: 0 }}>{fmt(pending)}</p></div>
+          <div><span>Total owed</span><p style={{ fontSize: 22, fontWeight: 700, marginBottom: 0 }}>{fmt(outstanding + pending)}</p></div>
+        </div>
+      </section>
     </div>
   );
 }

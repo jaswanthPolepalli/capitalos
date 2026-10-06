@@ -1,3 +1,8 @@
+import { EarningsSummary } from '../components/EarningsSummary';
+import { PaymentSelectionActions } from '../components/PaymentSelectionActions';
+import { RecordRow } from "../components/RecordRow";
+import { OptionalDateInput } from "../components/OptionalDateInput";
+import { EditContributionModal } from "../components/EditContributionModal";
 import {
   BadgeIndianRupee,
   CalendarClock,
@@ -9,6 +14,7 @@ import {
   Download,
   Edit2,
   MessageSquare,
+  Merge,
   PlusCircle,
   Search,
   X,
@@ -17,9 +23,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { PageHeader } from "../components/PageHeader";
+import { CombineCapitalModal } from '../components/CombineCapitalModal';
+import { CombinationHistoryModal } from '../components/CombinationHistoryModal';
 import { formatDate } from "../lib/format";
 import type { AddAllocationInput, AddCapitalReturnInput, CreditCard } from "../store";
-import { computeNextDueDate, updateAllocationCreditCard, updateAllocationReturnDate, updateAllocationWAConfirmed } from "../store";
+import { computeNextDueDate, updateAllocationReturnDate, updateAllocationWAConfirmed, combinationRevertReason, revertCombination } from "../store";
 import { useStore } from "../useStore";
 import { amountToWords } from "../lib/amountWords";
 import { downloadCSV, csvFilename } from "../lib/csv";
@@ -62,6 +70,22 @@ interface WASummaryRow {
   isCard: boolean;
   confirmed: boolean;  // whether due-date checkbox is checked
   dueDate: string;     // editable ISO date
+  receivedDate: string;
+  createdAt: string;
+}
+
+// Sort key must match what's actually shown: only a *confirmed* due date counts as "has a date" —
+// an unconfirmed returnDate stored in the DB must not jump the row ahead of undated ones.
+// Falls back to receivedDate, then createdAt, so ties resolve consistently.
+function compareWARows(x: WASummaryRow, y: WASummaryRow): number {
+  const aHasDate = x.confirmed && !!x.dueDate;
+  const bHasDate = y.confirmed && !!y.dueDate;
+  if (aHasDate && bHasDate) return x.dueDate.localeCompare(y.dueDate);
+  if (aHasDate && !bHasDate) return -1;
+  if (!aHasDate && bHasDate) return 1;
+  const receivedDiff = x.receivedDate.localeCompare(y.receivedDate);
+  if (receivedDiff !== 0) return receivedDiff;
+  return x.createdAt.localeCompare(y.createdAt);
 }
 
 function WhatsAppSummaryModal({
@@ -74,25 +98,20 @@ function WhatsAppSummaryModal({
   const [rows, setRows] = useState<WASummaryRow[]>(() => {
     const active = allocationSummaries.filter((a) => !a.isFullyReturned);
 
-    // Sort by returnDate ascending (null/empty → bottom)
-    const sorted = [...active].sort((a, b) => {
-      if (a.returnDate && b.returnDate) return a.returnDate.localeCompare(b.returnDate);
-      if (a.returnDate) return -1;
-      if (b.returnDate) return 1;
-      return 0;
-    });
-
-    return sorted.map((a) => ({
+    return active.map((a) => ({
       id: a.id,
       // Use only the first word of the card name (e.g. "SBI Simply Click Visa" → "SBI")
       label: a.creditCard ? a.creditCard.cardName.split(" ")[0]! : "",
-      amountRupees: a.amountRupees,
+      // Use remaining outstanding capital, not the original total (partial repayments reduce this)
+      amountRupees: a.capitalOutstanding,
       partnerName: a.partner?.name ?? "Unknown",
       isCard: !!a.creditCardId,
       // Auto-check only if the user explicitly confirmed the due date via this modal
       // (indicated by a "WA_CONFIRMED" tag in notes)
       confirmed: (a.notes || "").includes("WA_CONFIRMED"),
       dueDate: a.returnDate ?? "",
+      receivedDate: a.receivedDate,
+      createdAt: a.createdAt || "",
     }));
   });
 
@@ -125,8 +144,10 @@ function WhatsAppSummaryModal({
     }
   }
 
-  const cardRows = rows.filter((r) => r.isCard);
-  const cashRows = rows.filter((r) => !r.isCard);
+  // Re-sort on every rows change so ordering updates immediately as due dates are set/edited
+  const sortedRows = useMemo(() => [...rows].sort(compareWARows), [rows]);
+  const cardRows = sortedRows.filter((r) => r.isCard);
+  const cashRows = sortedRows.filter((r) => !r.isCard);
 
   function buildText(): string {
     const lines: string[] = [];
@@ -573,16 +594,17 @@ function RecordCapitalReturnModal({
               id="cr-alloc"
               options={activeAllocs.map((a) => {
                 const p = partners.find((pt) => pt.id === a.partnerId);
+                const source = a.creditCard ? a.creditCard.cardName : "Cash";
                 return {
                   value: a.id,
                   label: p?.name ?? a.partnerId,
-                  sublabel: `${fmt(a.amountRupees)} · Outstanding: ${fmt(a.capitalOutstanding)}`,
+                  sublabel: `${fmt(a.amountRupees)} · Outstanding: ${fmt(a.capitalOutstanding)} · ${source}`,
                 };
               })}
               value={form.allocationId}
               onChange={(v) => { set("allocationId", v); setForm((p) => ({ ...p, amountStr: "" })); }}
               placeholder="Select allocation…"
-              searchPlaceholder="Search by partner name…"
+              searchPlaceholder="Search by partner name or source (e.g. Axis)…"
               hasError={!!errors.allocationId}
             />
             {errors.allocationId && <span className="form-error">{errors.allocationId}</span>}
@@ -630,149 +652,25 @@ function RecordCapitalReturnModal({
 }
 
 // ─── Edit Contribution Modal ──────────────────────────────────────────────────
-// Allows editing return date and linking / unlinking a credit card
-
-function EditContributionModal({
-  allocation,
-  creditCards,
-  partners,
-  onClose,
-}: {
-  allocation: ReturnType<typeof useStore>["allocationSummaries"][0];
-  creditCards: CreditCard[];
-  partners: { id: string; name: string }[];
-  onClose: () => void;
-}) {
-  const partnerCards = creditCards.filter((c) => c.partnerId === allocation.partnerId);
-  const [creditCardId, setCreditCardId] = useState(allocation.creditCardId || "");
-  const [returnDate, setReturnDate] = useState(allocation.returnDate || "");
-  const [saving, setSaving] = useState(false);
-
-  const selectedCard = partnerCards.find((c) => c.id === creditCardId);
-
-  // When card changes, offer to auto-update return date
-  function handleCardChange(newCardId: string) {
-    setCreditCardId(newCardId);
-    if (newCardId) {
-      const card = partnerCards.find((c) => c.id === newCardId);
-      if (card && allocation.receivedDate) {
-        const nextDue = computeNextDueDate(card, allocation.receivedDate);
-        setReturnDate(nextDue);
-      }
-    }
-  }
-
-  async function handleSubmit(ev: React.FormEvent) {
-    ev.preventDefault();
-    setSaving(true);
-    try {
-      await updateAllocationCreditCard(allocation.id, creditCardId || null, returnDate || null);
-      onClose();
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const partner = partners.find((p) => p.id === allocation.partnerId);
-
-  return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-contrib-title">
-      <div className="modal">
-        <div className="modal__header">
-          <h2 id="edit-contrib-title">
-            <Edit2 size={16} style={{ verticalAlign: "middle", marginRight: 6 }} />
-            Edit Contribution
-          </h2>
-          <button className="icon-button" onClick={onClose} type="button"><X size={18} /></button>
-        </div>
-        <form className="modal__body" onSubmit={handleSubmit}>
-          <div className="form-hint" style={{ marginBottom: 12 }}>
-            <strong>{partner?.name ?? allocation.partnerId}</strong> · {fmt(allocation.amountRupees)} @ {allocation.profitPercent}% p.m. · Received {formatDate(allocation.receivedDate)}
-          </div>
-
-          {/* Credit card linkage */}
-          <div className="form-field">
-            <label htmlFor="ec-card" className="form-label">
-              <CreditCardIcon size={13} style={{ verticalAlign: "middle", marginRight: 4 }} />
-              Payment source
-            </label>
-            <SearchableSelect
-              id="ec-card"
-              options={[
-                { value: "", label: "Cash / Bank transfer", sublabel: "Default" },
-                ...partnerCards.map((c) => ({
-                  value: c.id,
-                  label: c.cardName,
-                  sublabel: `Limit: ${fmt(c.cardLimit)}`,
-                })),
-              ]}
-              value={creditCardId}
-              onChange={handleCardChange}
-              placeholder="Cash / Bank transfer"
-              searchPlaceholder="Search cards…"
-            />
-            {partnerCards.length === 0 && (
-              <span className="form-label__optional" style={{ fontSize: 11, marginTop: 3, display: "block" }}>
-                No credit cards for this partner.{" "}
-                <Link to="/credit-cards" style={{ color: "var(--accent)" }}>Add one →</Link>
-              </span>
-            )}
-            {selectedCard && (
-              <div className="form-hint" style={{ marginTop: 6 }}>
-                <CalendarClock size={12} style={{ verticalAlign: "middle", marginRight: 4 }} />
-                Bill gen: {formatDate(selectedCard.billGenerationDate)} · Due: {formatDate(selectedCard.dueDate)}
-                <br />
-                Auto-computed return date from received date ({formatDate(allocation.receivedDate)}): <strong>{computeNextDueDate(selectedCard, allocation.receivedDate)}</strong>
-              </div>
-            )}
-          </div>
-
-          {/* Return date */}
-          <div className="form-field">
-            <label htmlFor="ec-return-date" className="form-label">
-              Return date
-              {selectedCard && <span style={{ color: "var(--accent)", fontSize: 11, marginLeft: 6 }}>(editable — auto-filled from card)</span>}
-              {!selectedCard && <span className="form-label__optional"> (optional)</span>}
-            </label>
-            <input
-              id="ec-return-date"
-              className="form-input"
-              type="date"
-              value={returnDate}
-              onChange={(e) => setReturnDate(e.target.value)}
-            />
-            {returnDate && (
-              <button
-                type="button"
-                style={{ fontSize: 11, color: "var(--muted)", background: "none", border: "none", cursor: "pointer", marginTop: 4, padding: 0 }}
-                onClick={() => setReturnDate("")}
-              >
-                Clear date
-              </button>
-            )}
-          </div>
-
-          <div className="modal__footer">
-            <button className="button button--secondary" type="button" onClick={onClose} disabled={saving}>Cancel</button>
-            <button className="button button--primary" type="submit" disabled={saving}>
-              {saving ? "Saving…" : <><Edit2 size={14} /> Save changes</>}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+// Edits every contribution field. Individual allocations remain separate in the
+// data store, so changing one never overwrites another contribution's history.
 
 // ─── Edit Return Date Modal ───────────────────────────────────────────────────
 
 function EditReturnDateModal({ allocationId, currentReturnDate, onClose }: { allocationId: string; currentReturnDate: string | null; onClose: () => void }) {
   const [value, setValue] = useState(currentReturnDate ?? "");
 
-  function handleSubmit(ev: React.FormEvent) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
-    updateAllocationReturnDate(allocationId, value || null);
-    onClose();
+    setSaving(true);
+    try {
+      await updateAllocationReturnDate(allocationId, value || null);
+      onClose();
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to save return date."); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -785,11 +683,12 @@ function EditReturnDateModal({ allocationId, currentReturnDate, onClose }: { all
         <form className="modal__body" onSubmit={handleSubmit}>
           <div className="form-field">
             <label htmlFor="edit-return-date" className="form-label">Return date <span className="form-label__optional">(leave blank to remove)</span></label>
-            <input id="edit-return-date" className="form-input" type="date" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+            <OptionalDateInput id="edit-return-date" className="form-input" value={value} onValueChange={setValue} disabled={saving} autoFocus />
           </div>
+          {error && <p className="form-error" role="alert">{error}</p>}
           <div className="modal__footer">
             <button className="button button--secondary" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button--primary" type="submit"><CalendarClock size={16} /> Save</button>
+            <button className="button button--primary" type="submit" disabled={saving}><CalendarClock size={16} /> Save</button>
           </div>
         </form>
       </div>
@@ -830,7 +729,25 @@ function Pagination({
 // ─── Capital Contributions page ───────────────────────────────────────────────
 
 export function CapitalContributionsPage() {
-  const { allocationSummaries, partners, creditCards, addAllocation, addCapitalReturn } = useStore();
+  const { allocationSummaries, partners, creditCards, profitRecords, capitalReturns, addAllocation, addCapitalReturn } = useStore();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showCombine, setShowCombine] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyId, setHistoryId] = useState<string | null>(null);
+  const historyEntry = allocationSummaries.find(a => a.id === historyId);
+  const [revertingId, setRevertingId] = useState<string | null>(null);
+  const [revertError, setRevertError] = useState('');
+  const [revertSaving, setRevertSaving] = useState(false);
+  async function confirmRevert() {
+    if (!revertingId) return;
+    setRevertSaving(true); setRevertError('');
+    try {
+      await revertCombination(revertingId);
+      setRevertingId(null); setSelectedIds([]);
+    } catch (error) { setRevertError(error instanceof Error ? error.message : 'Unable to revert combination.'); }
+    finally { setRevertSaving(false); }
+  }
+  const selectedEntries = allocationSummaries.filter(a => selectedIds.includes(a.id) && !a.combinationReserved && a.capitalOutstanding > 0);
   const { isCFO } = useRole();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
@@ -841,10 +758,13 @@ export function CapitalContributionsPage() {
   const [filterStatus, setFilterStatus] = useState("ALL"); // ALL | ACTIVE | RETURNED
   const [filterSource, setFilterSource] = useState("ALL"); // ALL | CASH | CARD
   const [searchQuery, setSearchQuery] = useState("");
+  // The read-only CEO view lands on newest capital given first. Return-date
+  // ordering is available without changing the underlying historic records.
+  const [sortBy, setSortBy] = useState<"received-desc" | "received-asc" | "return-asc" | "return-desc">("received-desc");
   const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
-    let result = allocationSummaries;
+    let result = allocationSummaries.filter(a => showHistory || !a.combinedInto);
     if (filterPartnerId !== "ALL") result = result.filter((a) => a.partnerId === filterPartnerId);
     if (filterStatus === "ACTIVE") result = result.filter((a) => !a.isFullyReturned);
     if (filterStatus === "RETURNED") result = result.filter((a) => a.isFullyReturned);
@@ -863,17 +783,38 @@ export function CapitalContributionsPage() {
       });
     }
     return result;
-  }, [allocationSummaries, filterPartnerId, filterStatus, filterSource, searchQuery]);
+  }, [allocationSummaries, filterPartnerId, filterStatus, filterSource, searchQuery, showHistory]);
+
+  const sorted = useMemo(() => [...filtered].sort((a, b) => {
+    if (sortBy === "received-desc") return b.receivedDate.localeCompare(a.receivedDate);
+    if (sortBy === "received-asc") return a.receivedDate.localeCompare(b.receivedDate);
+    // Contributions without a return date are intentionally placed last.
+    if (!a.returnDate && !b.returnDate) return b.receivedDate.localeCompare(a.receivedDate);
+    if (!a.returnDate) return 1;
+    if (!b.returnDate) return -1;
+    return sortBy === "return-asc"
+      ? a.returnDate.localeCompare(b.returnDate)
+      : b.returnDate.localeCompare(a.returnDate);
+  }), [filtered, sortBy]);
 
   // Reset to page 1 when filters change
-  useEffect(() => { setPage(1); }, [filterPartnerId, filterStatus, filterSource, searchQuery]);
+  useEffect(() => { setPage(1); }, [filterPartnerId, filterStatus, filterSource, searchQuery, sortBy]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const totalCapital = filtered.reduce((s, a) => s + a.amountRupees, 0);
-  const totalOutstanding = filtered.reduce((s, a) => s + a.capitalOutstanding, 0);
-  const totalReturned = filtered.reduce((s, a) => s + a.totalCapitalReturned, 0);
+  const accountingIds = new Set(filtered.map(a => a.id));
+  function includeOriginals(id: string) {
+    const entry = allocationSummaries.find(a => a.id === id);
+    for (const source of entry?.combination?.sources ?? []) {
+      if (!accountingIds.has(source.id)) { accountingIds.add(source.id); includeOriginals(source.id); }
+    }
+  }
+  filtered.forEach(a => includeOriginals(a.id));
+  const accountingEntries = allocationSummaries.filter(a => accountingIds.has(a.id));
+  const totalCapital = accountingEntries.reduce((s, a) => s + a.contributedAmount, 0);
+  const totalOutstanding = accountingEntries.reduce((s, a) => s + a.capitalOutstanding, 0);
+  const totalReturned = accountingEntries.reduce((s, a) => s + a.totalCapitalReturned, 0);
   const cashOutstanding = filtered.filter((a) => !a.creditCardId).reduce((s, a) => s + a.capitalOutstanding, 0);
   const cardOutstanding = filtered.filter((a) => !!a.creditCardId).reduce((s, a) => s + a.capitalOutstanding, 0);
 
@@ -885,15 +826,15 @@ export function CapitalContributionsPage() {
   function handleExportCSV() {
     downloadCSV(
       csvFilename("capital-contributions"),
-      ["Partner", "Amount (₹)", "Profit % / mo", "Source", "Received", "Returned (₹)", "Outstanding (₹)", "Return Date", "Status", "Notes"],
-      filtered.map((a) => [
+      ["Partner", "Amount (₹)", "Profit % / mo", "Source", "Received", "Returned (₹)", "Outstanding (₹)", "Regular Profit Paid (₹)", "Cashback Paid (₹)", "Total Profits Received (₹)", "Return Date", "Status", "Notes"],
+      sorted.map((a) => [
         a.partner?.name ?? a.partnerId,
         a.amountRupees,
         a.profitPercent,
         a.creditCard ? a.creditCard.cardName : "Cash",
         a.receivedDate,
         a.totalCapitalReturned,
-        a.capitalOutstanding,
+        a.capitalOutstanding, a.totalProfitPaid, a.unknownCashbackCount ? 'Amount not recorded' : a.totalCashbackPaid, a.totalProfitsReceived,
         a.returnDate ?? "",
         a.isFullyReturned ? "Returned" : "Active",
         (a.notes ?? "").replace(/\s*WA_CONFIRMED\s*/g, "").trim(),
@@ -903,12 +844,22 @@ export function CapitalContributionsPage() {
 
   return (
     <div className="list-page">
+      {showCombine && <CombineCapitalModal entries={selectedEntries} onClose={() => { setShowCombine(false); setSelectedIds([]); }} />}
+      {historyEntry && <CombinationHistoryModal entry={historyEntry} allocations={allocationSummaries} profits={profitRecords} returns={capitalReturns} onClose={() => setHistoryId(null)} revertReason={combinationRevertReason(historyEntry.id)} {...(isCFO ? { onRevert: () => { setHistoryId(null); setRevertError(''); setRevertingId(historyEntry.id); } } : {})} />}
+      {isCFO && revertingId && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="revert-combination-title"><div className="modal">
+        <div className="modal__header"><h2 id="revert-combination-title">Revert combination?</h2></div>
+        <div className="modal__body"><p>The original contributions will become separate entries again, with their original dates, rates, return dates and payment history. The combined entry will be archived.</p>
+          <p>This is only available while no related records have changed since combination.</p>
+          {revertError && <p className="form-error" role="alert">{revertError}</p>}
+        </div>
+        <div className="modal__footer"><button className="button button--secondary" type="button" disabled={revertSaving} onClick={() => setRevertingId(null)}>Cancel</button><button className="button button--primary" type="button" disabled={revertSaving} onClick={confirmRevert}>{revertSaving ? 'Reverting…' : 'Confirm revert'}</button></div>
+      </div></div>}
       <PageHeader
         eyebrow="Capital inflow"
         title="Capital Contributions"
         description="Record capital received from partners, track returns, and manage return dates."
         actions={
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="capital-page-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {filtered.length > 0 && (
               <button className="button button--secondary" type="button" onClick={handleExportCSV}>
                 <Download size={15} /> Export CSV
@@ -930,6 +881,13 @@ export function CapitalContributionsPage() {
           </div>
         }
       />
+      <EarningsSummary allocations={filtered} regularProfit={filtered.reduce((sum, a) => sum + a.totalProfitPaid, 0)} />
+
+      {isCFO && (
+        <button className="button button--primary capital-contributions__mobile-add" type="button" onClick={() => setShowAddModal(true)}>
+          <PlusCircle size={16} /> Record Contribution
+        </button>
+      )}
 
       {showWASummary && (
         <WhatsAppSummaryModal
@@ -969,7 +927,13 @@ export function CapitalContributionsPage() {
         />
       )}
 
+      {isCFO && <PaymentSelectionActions entries={allocationSummaries.filter(a => selectedIds.includes(a.id))} onClear={() => setSelectedIds([])} />}
       <div className="list-page__toolbar">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+          {isCFO && <button className="button button--primary" type="button" disabled={selectedEntries.length < 2 || selectedEntries.length !== selectedIds.length} onClick={() => setShowCombine(true)}>Combine selected ({selectedEntries.length})</button>}
+          {selectedIds.length > 0 && <button className="button button--secondary" type="button" onClick={() => setSelectedIds([])}>Clear selection</button>}
+          <label className="checkbox-row"><input type="checkbox" checked={showHistory} onChange={e => setShowHistory(e.target.checked)} />Show original combined entries</label>
+        </div>
         <div className="filter-bar">
           <div className="filter-bar__controls" style={{ flexWrap: "wrap" }}>
             {/* Global search */}
@@ -1004,6 +968,12 @@ export function CapitalContributionsPage() {
                 <option value="CARD">Card only</option>
               </select>
             )}
+            <select className="select-filter__control" value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} aria-label="Sort contributions">
+              <option value="received-desc">Date given: newest first</option>
+              <option value="received-asc">Date given: oldest first</option>
+              <option value="return-asc">Return date: earliest first</option>
+              <option value="return-desc">Return date: latest first</option>
+            </select>
           </div>
           <div className="filter-bar__trailing">
             <span className="record-count">{filtered.length} allocation{filtered.length !== 1 ? "s" : ""}</span>
@@ -1047,7 +1017,7 @@ export function CapitalContributionsPage() {
               <th className="table-th">Received</th>
               <th className="table-th table-th--money">Returned</th>
               <th className="table-th table-th--money">Outstanding</th>
-              <th className="table-th">Return date</th>
+              <th className="table-th table-th--money">Regular profit paid</th><th className="table-th table-th--money">Cashback paid</th><th className="table-th table-th--money">Total profits received</th><th className="table-th">Return date</th>
               <th className="table-th">Status</th>
               <th className="table-th">Notes</th>
               <th className="table-th table-th--action"><span className="sr-only">Edit</span></th>
@@ -1056,7 +1026,7 @@ export function CapitalContributionsPage() {
           <tbody>
             {paginated.length === 0 ? (
               <tr>
-                <td colSpan={11}>
+                <td colSpan={14}>
                   <div className="table-empty">
                     <span className="empty-state__icon"><BadgeIndianRupee size={22} /></span>
                     <h3>No contributions yet</h3>
@@ -1067,9 +1037,11 @@ export function CapitalContributionsPage() {
               </tr>
             ) : (
               paginated.map((a) => (
-                <tr className="table-row" key={a.id}>
+                <RecordRow className="table-row" key={a.id}>
                   <td className="table-cell">
+                    {isCFO && (a.profitPending > 0 || (!a.combinationReserved && a.capitalOutstanding > 0)) && <input className="payment-row-selection" type="checkbox" aria-label={`Select contribution ${a.id}, ${a.partner?.name}, ${a.amountRupees}, ${a.receivedDate}`} checked={selectedIds.includes(a.id)} onChange={e => setSelectedIds(ids => e.target.checked ? [...ids, a.id] : ids.filter(id => id !== a.id))} style={{ marginRight: 8 }} />}
                     <Link className="entity-link" to={`/partners/${a.partnerId}`}>{a.partner?.name ?? a.partnerId}</Link>
+                    {a.combination && <button className="combination-icon-button" type="button" aria-label="View combination" title="Combined contributions · View history" onClick={() => setHistoryId(a.id)}><Merge size={17} strokeWidth={2} aria-hidden="true" /></button>}
                   </td>
                   <td className="table-cell table-cell--money" data-label="Amount"><strong>{fmt(a.amountRupees)}</strong></td>
                   <td className="table-cell" data-label="Profit %">
@@ -1090,6 +1062,7 @@ export function CapitalContributionsPage() {
                   <td className="table-cell table-cell--money" data-label="Outstanding" style={{ color: a.capitalOutstanding > 0 ? "var(--pending)" : "var(--muted)", fontWeight: a.capitalOutstanding > 0 ? 700 : 400 }}>
                     {fmt(a.capitalOutstanding)}
                   </td>
+                  <td className="table-cell table-cell--money" data-label="Regular profit paid">{fmt(a.totalProfitPaid)}</td><td className="table-cell table-cell--money" data-label="Cashback paid">{a.creditCardId ? a.unknownCashbackCount ? 'Amount not recorded' : fmt(a.totalCashbackPaid) : '—'}</td><td className="table-cell table-cell--money" data-label="Total profits received">{fmt(a.totalProfitsReceived)}{a.unknownCashbackCount > 0 && <small> + unrecorded cashback</small>}</td>
                   <td className="table-cell table-cell--secondary" data-label="Return date">
                     {a.returnDate ? (
                       <span style={{ color: "var(--pending)" }}>
@@ -1100,23 +1073,23 @@ export function CapitalContributionsPage() {
                   </td>
                   <td className="table-cell" data-label="Status">
                     <span className={`status-badge ${a.isFullyReturned ? "status-badge--inactive" : "status-badge--active"}`}>
-                      {a.isFullyReturned ? "Returned" : "Active"}
+                      {a.combinedInto ? 'Combined into another entry' : a.receivedDate > new Date().toLocaleDateString('en-CA') ? 'Scheduled' : a.isFullyReturned ? "Returned" : "Active"}
                     </span>
                   </td>
                    <td className="table-cell table-cell--secondary" data-label="Notes">{(a.notes || "").replace(/\s*WA_CONFIRMED\s*/g, "").trim() || "—"}</td>
                   <td className="table-cell table-cell--action">
-                    {isCFO && (
+                    {isCFO && !a.combinationReserved && (
                       <button
                         className="icon-button"
                         type="button"
-                        title="Edit contribution (card, return date)"
+                        title="Edit contribution (card, return date)" aria-label="Edit contribution"
                         onClick={() => setEditContribId(a.id)}
                       >
                         <Edit2 size={15} />
-                      </button>
+                      <span className="mobile-action-label">Edit contribution</span></button>
                     )}
                   </td>
-                </tr>
+                </RecordRow>
               ))
             )}
           </tbody>
@@ -1126,7 +1099,7 @@ export function CapitalContributionsPage() {
       <Pagination
         page={page}
         totalPages={totalPages}
-        totalItems={filtered.length}
+        totalItems={sorted.length}
         pageSize={PAGE_SIZE}
         onPageChange={setPage}
       />

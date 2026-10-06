@@ -9,6 +9,7 @@ import { CheckCircle2, Copy, ExternalLink, Landmark, Link2, User } from "lucide-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
+import { SearchInput } from "../components/SearchInput";
 import { PageHeader } from "../components/PageHeader";
 import { useStore } from "../useStore";
 
@@ -140,6 +141,8 @@ function CEOPortalCard() {
 
 export function PortalLinksPage() {
   const { partners } = useStore();
+  const [search, setSearch] = useState("");
+  const filteredPartners = partners.filter((p) => p.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
 
   return (
     <div className="list-page">
@@ -177,6 +180,8 @@ export function PortalLinksPage() {
         Partner portals ({partners.length})
       </h2>
 
+      <SearchInput value={search} onChange={setSearch} placeholder="Find a partner portal…" label="Find a partner portal" />
+
       {partners.length === 0 ? (
         <div className="empty-state empty-state--compact">
           <span className="empty-state__icon"><Link2 size={22} /></span>
@@ -186,7 +191,8 @@ export function PortalLinksPage() {
         </div>
       ) : (
         <div className="portal-links-grid">
-          {partners.map((p) => (
+          {filteredPartners.length === 0 && <p role="status">No partner portals match your search.</p>}
+          {filteredPartners.map((p) => (
             <PartnerPortalCard key={p.id} id={p.id} name={p.name} />
           ))}
         </div>

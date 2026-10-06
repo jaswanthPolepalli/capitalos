@@ -7,6 +7,8 @@
     "build": "npm run typecheck && npm run client:build",
     "client:build": "vite build --config client/vite.config.ts",
     "client:dev": "vite --config client/vite.config.ts",
+    "client:dev:mock": "VITE_USE_MOCK=true vite --config client/vite.config.ts",
+    "seed:local": "tsx scripts/seed-local.ts",
     "client:preview": "vite preview --config client/vite.config.ts",
     "client:typecheck": "tsc --noEmit -p client/tsconfig.json",
     "iac:pack": "npm run validate && tsx scripts/package-iac.ts",
@@ -15,10 +17,14 @@
     "typecheck": "tsc --noEmit && npm run client:typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "validate": "npm run schema:check && npm run typecheck && npm test && npm run client:build"
+    "validate": "npm run schema:check && npm run backend:check && npm run typecheck && npm test && npm run client:build",
+    "backend:check": "npm run month-end:prepare && node --check functions/capitalos-api/index.js && node --check functions/capitalos-api/persistence.js && node --check functions/capitalos-api/cashback.mjs && node --check functions/capitalos-api/records.mjs && node --check functions/capitalos-api/imports.mjs && node --check functions/capitalos-api/profit-cycles.mjs && node --check functions/capitalos-api/payment-groups.mjs && node --check functions/capitalos-api/group-payments.js && node --check functions/capitalos-api/group-payment-email.js && node --check functions/capitalos-api/month-end-statements.js && node --check functions/capitalos-month-end/index.js && npm run daily-summary:prepare && node --check functions/capitalos-api/daily-summary.js && node --check functions/capitalos-api/daily-summary-pdf.js && node --check functions/capitalos-daily-summary/index.js",
+    "schema:operations": "tsx scripts/provision-operations.ts",
+    "month-end:prepare": "node scripts/prepare-month-end.mjs",
+    "daily-summary:prepare": "node scripts/prepare-daily-summary.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24 <25"
   },
   "dependencies": {
     "framer-motion": "^13.1.1",
@@ -43,5 +49,6 @@
     "typescript": "^5.9.0",
     "vite": "^7.3.6",
     "vitest": "^3.2.0"
-  }
+  },
+  "packageManager": "npm@11.17.0"
 }

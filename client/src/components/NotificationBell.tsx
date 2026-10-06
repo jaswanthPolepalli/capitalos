@@ -16,7 +16,8 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -26,6 +27,7 @@ import {
   dismissNotification,
   type AppNotification,
   type NotificationSeverity,
+  type NotificationState,
 } from "../lib/notifications";
 import { useStore } from "../useStore";
 
@@ -94,32 +96,28 @@ function NotificationRow({
 
 function NotificationDrawer({
   onClose,
+  state,
+  onReadChange,
 }: {
   onClose: () => void;
+  state: NotificationState;
+  onReadChange: () => void;
 }) {
   const navigate = useNavigate();
-  const { partnerSummaries, creditCards, allocationSummaries } = useStore();
-  const [tick, setTick] = useState(0);
-
-  const state = useMemo(
-    () => deriveNotifications(partnerSummaries, creditCards, allocationSummaries),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [partnerSummaries, creditCards, allocationSummaries, tick],
-  );
 
   function handleDismiss(id: string) {
     dismissNotification(id);
-    setTick((t) => t + 1);
+    onReadChange();
   }
 
   function handleDismissAll() {
     dismissAll(state.unread.map((n) => n.id));
-    setTick((t) => t + 1);
+    onReadChange();
   }
 
   function handleClearDismissed() {
     clearAllDismissed();
-    setTick((t) => t + 1);
+    onReadChange();
   }
 
   function handleNavigate(link: string) {
@@ -254,25 +252,12 @@ function NotificationDrawer({
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const { partnerSummaries, creditCards, allocationSummaries } = useStore();
-  const drawerRef = useRef<HTMLDivElement>(null);
+  const [readVersion, setReadVersion] = useState(0);
 
   const state = useMemo(
     () => deriveNotifications(partnerSummaries, creditCards, allocationSummaries),
-    [partnerSummaries, creditCards, allocationSummaries],
+    [partnerSummaries, creditCards, allocationSummaries, readVersion],
   );
-
-  // Close on outside click
-  useEffect(() => {
-    if (!isOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    // Delayed to avoid same-click-that-opened immediately closing it
-    setTimeout(() => document.addEventListener("mousedown", handleClick), 100);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [isOpen]);
 
   // Close on Escape
   useEffect(() => {
@@ -285,7 +270,7 @@ export function NotificationBell() {
   }, [isOpen]);
 
   return (
-    <div className="notif-bell-wrap" ref={drawerRef}>
+    <div className="notif-bell-wrap">
       <button
         className={`icon-button notif-bell-btn${state.criticalCount > 0 ? " notif-bell-btn--critical" : ""}`}
         type="button"
@@ -301,21 +286,29 @@ export function NotificationBell() {
         )}
       </button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              className="notif-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsOpen(false)}
-            />
-            <NotificationDrawer onClose={() => setIsOpen(false)} />
-          </>
+      {/* Escape the top bar’s backdrop-filter containing block. */}
+      {createPortal(
+        <AnimatePresence>
+          {isOpen && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                className="notif-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsOpen(false)}
+              />
+              <NotificationDrawer
+                state={state}
+                onReadChange={() => setReadVersion((version) => version + 1)}
+                onClose={() => setIsOpen(false)}
+              />
+            </>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body,
+      )}
     </div>
   );
 }

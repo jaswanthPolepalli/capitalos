@@ -26,7 +26,16 @@
  */
 
 const catalyst = require("zcatalyst-sdk-node");
+const persistence = require("./persistence.js");
+const { validateCashback } = require("./cashback.mjs");
 const nodemailer = require("nodemailer");
+const groupPayments = require('./group-payments.js');
+const groupPaymentEmail = require('./group-payment-email.js');
+const { paymentMetadata, paymentNotes } = require('./payment-groups.mjs');
+let importTools;
+const importsReady = import('./imports.mjs').then(module => { importTools = module; });
+let combinations;
+const combinationsReady = import('./combinations.mjs').then(module => { combinations = module; });
 
 // ── Gmail SMTP transporter ────────────────────────────────────────────────────
 // Uses Gmail App Password — no domain verification required.
@@ -35,6 +44,9 @@ const GMAIL_APP_PASS = "bnoi thdv bfez owqv";
 
 const smtpTransporter = nodemailer.createTransport({
   service: "gmail",
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
   auth: {
     user: GMAIL_USER,
     pass: GMAIL_APP_PASS,
@@ -50,12 +62,13 @@ async function sendPartnerEmail(req, partnerId, subject, htmlBody) {
     );
 
     if (!partnerRow || !partnerRow.email || !String(partnerRow.email).trim()) {
-      return;
+      return { status: 'no_email' };
     }
 
     const toAddress = String(partnerRow.email).trim();
     const partnerName = String(partnerRow.name || "Partner").trim();
-    const personalizedBody = htmlBody.replace(/Dear Partner,/, `Dear ${partnerName},`);
+    const body = typeof htmlBody === "function" ? await htmlBody(partnerName) : htmlBody;
+    const personalizedBody = body.replace(/Dear Partner,/, () => `Dear ${escapeHtml(partnerName)},`);
 
     await smtpTransporter.sendMail({
       from: `"CapitalOS" <${GMAIL_USER}>`,
@@ -65,14 +78,16 @@ async function sendPartnerEmail(req, partnerId, subject, htmlBody) {
     });
 
     console.log(`[capitalos-api] Email sent to ${toAddress} (partner: ${partnerName})`);
+    return { status: 'sent', recipient: toAddress };
   } catch (emailErr) {
     console.error("[capitalos-api] Email send failed:", emailErr);
+    return { status: 'unconfirmed' };
   }
 }
 
 // ── Email templates ───────────────────────────────────────────────────────────
 
-const APP_BASE_URL = "https://capitalos-60070830470.development.catalystserverless.in/app";
+const APP_BASE_URL = (process.env.APP_BASE_URL || "https://capitalos-60070830470.development.catalystserverless.in/app").replace(/\/$/, "");
 
 function allocationEmail(partnerName, partnerId, amountRupees, profitPercent, receivedDate) {
   const portalUrl = `${APP_BASE_URL}/#/p/partner-${partnerId}`;
@@ -91,20 +106,47 @@ function allocationEmail(partnerName, partnerId, amountRupees, profitPercent, re
 <p>Regards,<br/>CapitalOS Team</p>`;
 }
 
-function profitEmail(partnerName, partnerId, amountRupees, paidDate) {
-  const portalUrl = `${APP_BASE_URL}/#/p/partner-${partnerId}`;
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+}
+
+async function profitEmail(req, partnerName, payment, allocation, allocations, cashback = false) {
+  const returns = await fetchAllRows(req, TABLES.CAPITAL_RETURNS);
+  const returned = returns.filter(row => !isDeleted(row.notes) && String(row.allocation_id) === allocation.id)
+    .reduce((total, row) => total + Number(row.amount_rupees || 0), 0);
+  const today = new Date().toLocaleDateString('en-CA');
+  const transferred = allocations.some(parent => parent.receivedDate <= today && parent.combination?.sources.some(source => source.id === allocation.id));
+  const outstanding = transferred || allocation.receivedDate > today ? 0 : Math.max(0, allocation.amountRupees - returned);
+  const rate = outstanding > 0 ? Math.round((payment.amountRupees / outstanding) * 10000) / 100 : cashback ? Math.round((payment.amountRupees / allocation.amountRupees) * 10000) / 100 : allocation.profitPercent;
+  let fundingSource = 'Cash';
+  if (allocation.creditCardId) {
+    const cards = await fetchAllRows(req, TABLES.CREDIT_CARDS);
+    const card = cards.find(row => String(row.ROWID) === allocation.creditCardId && !isDeleted(row.notes));
+    fundingSource = `Credit Card${card?.card_name ? ` (${card.card_name})` : ''}`;
+  }
+  const formatDate = value => {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  const money = value => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
+  const details = [
+    ['Amount', money(payment.amountRupees)],
+    ['Date', formatDate(payment.paidDate)],
+    ['Funding source', fundingSource],
+    ['Amount given date', formatDate(allocation.receivedDate)],
+    ['Capital outstanding', money(outstanding)],
+    ['Rate', `${rate}%`],
+  ];
+  const portalUrl = `${APP_BASE_URL}/#/p/partner-${encodeURIComponent(payment.partnerId)}`;
   return `
-<p>Dear ${partnerName},</p>
-<p>A profit payment has been recorded for your account in <strong>CapitalOS</strong>.</p>
+<h2>${cashback ? "Cashback Sharing" : "Profit Payment Confirmation"}</h2>
+<p>Hi ${escapeHtml(partnerName)},</p>
+<p>Your ${cashback ? "cashback sharing" : "profit payment"} has been processed:</p>
 <table cellpadding="8" cellspacing="0" border="1" style="border-collapse:collapse;font-family:sans-serif;">
-  <tr><th align="left">Amount Paid</th><td>₹${Number(amountRupees).toLocaleString("en-IN")}</td></tr>
-  <tr><th align="left">Date</th><td>${paidDate}</td></tr>
+${details.map(([label, value]) => `  <tr><th align="left">${label}</th><td>${escapeHtml(value)}</td></tr>`).join('\n')}
 </table>
-<p>View your updated profit statement here:</p>
 <p><a href="${portalUrl}" style="display:inline-block;padding:10px 18px;background:#176f50;color:#fff;border-radius:4px;text-decoration:none;font-weight:700;">View My Portal →</a></p>
-<p style="font-size:12px;color:#888;">${portalUrl}</p>
-<p>Please contact us if you have any questions.</p>
-<p>Regards,<br/>CapitalOS Team</p>`;
+<p>Thank you.<br/>— CapitalOS</p>`;
 }
 
 function capitalReturnEmail(partnerName, partnerId, amountRupees, returnedDate) {
@@ -147,8 +189,8 @@ function created(res, data) { sendJSON(res, 201, { status: "success", data }); }
 function badRequest(res, message) { sendJSON(res, 400, { status: "error", message }); }
 function notFound(res) { sendJSON(res, 404, { status: "error", message: "Not found" }); }
 function serverError(res, err) {
-  console.error("[capitalos-api]", err);
-  sendJSON(res, 500, { status: "error", message: String(err && err.message ? err.message : err) });
+  if (!err.statusCode || err.statusCode >= 500) console.error("[capitalos-api]", err);
+  sendJSON(res, err.statusCode || 500, { status: "error", message: String(err && err.message ? err.message : err) });
 }
 
 function readBody(req) {
@@ -167,23 +209,19 @@ function getApp(req) {
   return catalyst.initialize(req);
 }
 
-async function fetchAllRows(req, tableName) {
+function getRepository(req) {
   const app = getApp(req);
-  const table = app.datastore().table(tableName);
-  const result = await table.getPagedRows({ maxRows: 200 });
-  return result.data || [];
+  return persistence.repository(name => app.datastore().table(name));
 }
-
-async function insertRow(req, tableName, rowData) {
-  const app = getApp(req);
-  const table = app.datastore().table(tableName);
-  return await table.insertRow(rowData);
-}
-
+async function fetchAllRows(req, tableName) { return getRepository(req).fetch(tableName); }
+async function insertRow(req, tableName, rowData) { return getRepository(req).insert(tableName, rowData, req.url); }
 async function updateRowById(req, tableName, rowId, rowData) {
-  const app = getApp(req);
-  const table = app.datastore().table(tableName);
-  return await table.updateRow(Object.assign({ ROWID: rowId }, rowData));
+  if ([TABLES.PROFIT_RECORDS, TABLES.CAPITAL_RETURNS].includes(tableName) && rowData.notes !== undefined) {
+    const previous = await getApp(req).datastore().table(tableName).getRow(rowId);
+    const { paymentGroupId } = paymentMetadata(previous?.notes);
+    if (paymentGroupId) rowData = { ...rowData, notes: paymentNotes(rowData.notes, paymentGroupId) };
+  }
+  return getRepository(req).update(tableName, rowId, rowData, req.url);
 }
 
 function mapPartner(row) {
@@ -193,11 +231,12 @@ function mapPartner(row) {
     phone: row.phone || "",
     email: row.email || "",
     notes: row.notes || "",
-    createdAt: row.CREATEDTIME ? String(row.CREATEDTIME).slice(0, 10) : "",
+    createdAt: (row.source_created_time || row.CREATEDTIME) ? String(row.source_created_time || row.CREATEDTIME).slice(0, 10) : "",
   };
 }
 
 function mapAllocation(row) {
+  const metadata = combinations.decode(row.notes || '');
   return {
     id: String(row.ROWID),
     partnerId: String(row.partner_id || ""),
@@ -206,7 +245,10 @@ function mapAllocation(row) {
     receivedDate: row.received_date || "",
     returnDate: row.return_date || null,
     creditCardId: row.credit_card_id ? String(row.credit_card_id) : null,
-    notes: row.notes || "",
+    ...(row.cashback_data ? { cashback: JSON.parse(row.cashback_data) } : {}),
+    notes: metadata ? metadata.notes : row.notes || "",
+    ...(metadata ? { combination: metadata.combination } : {}),
+    createdAt: (row.source_created_time || row.CREATEDTIME) ? new Date(row.source_created_time || row.CREATEDTIME).toISOString() : "",
   };
 }
 
@@ -217,7 +259,8 @@ function mapCapitalReturn(row) {
     partnerId: String(row.partner_id || ""),
     amountRupees: Number(row.amount_rupees || 0),
     returnedDate: row.returned_date || "",
-    notes: row.notes || "",
+    ...paymentMetadata(row.notes || ""),
+    createdAt: (row.source_created_time || row.CREATEDTIME) ? new Date(row.source_created_time || row.CREATEDTIME).toISOString() : "",
   };
 }
 
@@ -228,7 +271,8 @@ function mapProfitRecord(row) {
     partnerId: String(row.partner_id || ""),
     amountRupees: Number(row.amount_rupees || 0),
     paidDate: row.paid_date || "",
-    notes: row.notes || "",
+    ...paymentMetadata(row.notes || ""),
+    createdAt: (row.source_created_time || row.CREATEDTIME) ? new Date(row.source_created_time || row.CREATEDTIME).toISOString() : "",
   };
 }
 
@@ -242,7 +286,7 @@ function mapCreditCard(row) {
     billGenerationDate: row.bill_generation_date || "",
     dueDate: row.due_date || "",
     notes: row.notes || "",
-    createdAt: row.CREATEDTIME ? String(row.CREATEDTIME).slice(0, 10) : "",
+    createdAt: (row.source_created_time || row.CREATEDTIME) ? String(row.source_created_time || row.CREATEDTIME).slice(0, 10) : "",
   };
 }
 
@@ -259,63 +303,112 @@ function isDeleted(notes) {
   return typeof notes === "string" && notes.startsWith(DELETED_PREFIX);
 }
 
-async function softDeletePartner(req, partnerId) {
-  const now = new Date().toISOString();
-
-  // 1. Fetch current partner so we can preserve its existing notes
-  const allPartners = await fetchAllRows(req, TABLES.PARTNERS);
-  const partnerRow = allPartners.find((r) => String(r.ROWID) === String(partnerId));
-  if (!partnerRow) throw new Error("Partner not found: " + partnerId);
-
-  await updateRowById(req, TABLES.PARTNERS, partnerId, {
-    notes: markDeleted(partnerRow.notes, now),
-  });
-
-  // 2. Cascade to all allocations for this partner
-  const allAllocations = await fetchAllRows(req, TABLES.ALLOCATIONS);
-  const partnerAllocations = allAllocations.filter(
-    (r) => String(r.partner_id) === String(partnerId) && !isDeleted(r.notes),
-  );
-  for (const alloc of partnerAllocations) {
-    await updateRowById(req, TABLES.ALLOCATIONS, String(alloc.ROWID), {
-      notes: markDeleted(alloc.notes, now),
-    });
-  }
-
-  // 3. Cascade to all capital returns for this partner
-  const allReturns = await fetchAllRows(req, TABLES.CAPITAL_RETURNS);
-  const partnerReturns = allReturns.filter(
-    (r) => String(r.partner_id) === String(partnerId) && !isDeleted(r.notes),
-  );
-  for (const cr of partnerReturns) {
-    await updateRowById(req, TABLES.CAPITAL_RETURNS, String(cr.ROWID), {
-      notes: markDeleted(cr.notes, now),
-    });
-  }
-
-  // 4. Cascade to all profit records for this partner
-  const allProfits = await fetchAllRows(req, TABLES.PROFIT_RECORDS);
-  const partnerProfits = allProfits.filter(
-    (r) => String(r.partner_id) === String(partnerId) && !isDeleted(r.notes),
-  );
-  for (const pr of partnerProfits) {
-    await updateRowById(req, TABLES.PROFIT_RECORDS, String(pr.ROWID), {
-      notes: markDeleted(pr.notes, now),
-    });
-  }
-
-  return {
-    partnerId: String(partnerId),
-    deletedAt: now,
-    cascaded: {
-      allocations: partnerAllocations.length,
-      capitalReturns: partnerReturns.length,
-      profitRecords: partnerProfits.length,
-    },
+const resources = {
+  partners: { table: TABLES.PARTNERS, map: mapPartner },
+  allocations: { table: TABLES.ALLOCATIONS, map: mapAllocation },
+  'capital-returns': { table: TABLES.CAPITAL_RETURNS, map: mapCapitalReturn },
+  'profit-records': { table: TABLES.PROFIT_RECORDS, map: mapProfitRecord },
+  'credit-cards': { table: TABLES.CREDIT_CARDS, map: mapCreditCard },
+};
+async function recordContext(req) {
+  const [partners, allocations] = await Promise.all([fetchAllRows(req, TABLES.PARTNERS), fetchAllRows(req, TABLES.ALLOCATIONS)]);
+  return { partners, allocations };
+}
+function visibleRow(type, row, context) { return persistence.visibility(type, row, context.partners, context.allocations); }
+function mapRecoverable(resource, row, context, type) {
+  const state = visibleRow(type, row, context);
+  const mapped = resource.map({ ...row, notes: persistence.originalNotes(row.notes) });
+  return { ...mapped, ...state,
+    ...(type === 'allocations' && mapped.combination && !state.restoreBlocked ? { restoreBlocked: 'Reverted combinations cannot be restored. Create a new combination.' } : {}),
   };
+}
+async function restoreRecord(req, type, row, context) {
+  const state = visibleRow(type, row, context);
+  if (state.restoreBlocked) throw Object.assign(new Error(state.restoreBlocked), { statusCode: 400 });
+  const notes = persistence.originalNotes(row.notes);
+  if (type === 'allocations' && combinations.decode(notes)) throw Object.assign(new Error('A reverted combination cannot be restored. Create a new combination.'), { statusCode: 400 });
+  if (type === 'capital-returns' || type === 'profit-records') {
+    const parent = context.allocations.find(a => String(a.ROWID) === String(row.allocation_id));
+    if (String(parent.partner_id) !== String(row.partner_id)) throw Object.assign(new Error('Contribution does not belong to the partner.'), { statusCode: 400 });
+    const active = context.allocations.filter(a => !visibleRow('allocations', a, context).deleted).map(mapAllocation);
+    if (active.some(a => a.combination?.sources.some(source => source.id === String(row.allocation_id)))) throw Object.assign(new Error('This contribution belongs to a capital combination; its original history cannot be restored separately.'), { statusCode: 400 });
+    if (type === 'capital-returns') {
+      const returns = await fetchAllRows(req, TABLES.CAPITAL_RETURNS);
+      const paid = returns.filter(r => String(r.ROWID) !== String(row.ROWID) && String(r.allocation_id) === String(row.allocation_id) && !visibleRow(type, r, context).deleted).reduce((sum, r) => sum + Number(r.amount_rupees), 0);
+      if (!(Number(row.amount_rupees) > 0) || paid + Number(row.amount_rupees) > Number(parent.amount_rupees)) throw Object.assign(new Error('Restoring this return would exceed the contributed capital.'), { statusCode: 400 });
+    }
+  }
+  const projected = { partners: context.partners.map(p => type === 'partners' && String(p.ROWID) === String(row.ROWID) ? { ...p, notes } : p), allocations: context.allocations.map(a => type === 'allocations' && String(a.ROWID) === String(row.ROWID) ? { ...a, notes } : a) };
+  const partnerId = type === 'partners' ? String(row.ROWID) : String(row.partner_id);
+  const activeAllocations = projected.allocations.filter(a => String(a.partner_id) === partnerId && !visibleRow('allocations', a, projected).deleted && (type !== 'allocations' || String(a.ROWID) === String(row.ROWID)));
+  const cards = (await fetchAllRows(req, TABLES.CREDIT_CARDS)).map(c => type === 'credit-cards' && String(c.ROWID) === String(row.ROWID) ? { ...c, notes } : c);
+  const [allReturns, allProfits] = await Promise.all([fetchAllRows(req, TABLES.CAPITAL_RETURNS), fetchAllRows(req, TABLES.PROFIT_RECORDS)]);
+  for (const allocation of activeAllocations) {
+    if (!(Number(allocation.amount_rupees) > 0) || !importTools.validDate(allocation.received_date) || (allocation.return_date && (!importTools.validDate(allocation.return_date) || allocation.return_date < allocation.received_date))) throw Object.assign(new Error('Correct invalid contribution dates or amounts before restoring this group.'), { statusCode: 400 });
+    if (allocation.credit_card_id && !cards.some(c => String(c.ROWID) === String(allocation.credit_card_id) && !visibleRow('credit-cards', c, projected).deleted)) throw Object.assign(new Error('Restore the linked credit card first.'), { statusCode: 400 });
+    const returns = allReturns.map(r => type === 'capital-returns' && String(r.ROWID) === String(row.ROWID) ? { ...r, notes } : r).filter(r => String(r.allocation_id) === String(allocation.ROWID) && !visibleRow('capital-returns', r, projected).deleted);
+    const profits = allProfits.map(r => type === 'profit-records' && String(r.ROWID) === String(row.ROWID) ? { ...r, notes } : r).filter(r => String(r.allocation_id) === String(allocation.ROWID) && !visibleRow('profit-records', r, projected).deleted);
+    if (returns.reduce((total, r) => total + Number(r.amount_rupees), 0) > Number(allocation.amount_rupees)) throw Object.assign(new Error('Restoring these records would exceed the contributed capital.'), { statusCode: 400 });
+    for (const payment of [...returns, ...profits]) {
+      const date = payment.returned_date || payment.paid_date;
+      if (!(Number(payment.amount_rupees) > 0) || !importTools.validDate(date) || date < allocation.received_date) throw Object.assign(new Error('A linked payment has an invalid amount or date; review it before restoring this group.'), { statusCode: 400 });
+    }
+  }
+  if (!isDeleted(row.notes)) return row;
+  return updateRowById(req, resources[type].table, String(row.ROWID), { notes });
+}
+function mapActivity(row) {
+  return { id: String(row.ROWID), operationId: row.operation_id, entityType: row.entity_type, entityId: row.entity_id,
+    action: row.action, status: row.status, actor: row.actor, occurredAt: row.occurred_at,
+    before: JSON.parse(row.before_state || 'null'), after: JSON.parse(row.after_state || 'null'), reason: row.reason || '' };
+}
+function mapReminder(row) {
+  return { id: String(row.ROWID), obligationId: row.obligation_id, partnerId: row.partner_id, allocationId: row.allocation_id,
+    kind: row.kind, action: row.action, channel: row.channel, amountRupees: Number(row.amount_paise) / 100, dueDate: row.due_date || '',
+    followUpDate: row.follow_up_date || '', notes: row.notes || '', occurredAt: row.occurred_at };
+}
+
+async function importRecords(req, body) {
+  if (!['partners', 'allocations'].includes(body.kind) || !Array.isArray(body.rows) || body.rows.length > 500) throw Object.assign(new Error('Choose partners or contributions and at most 500 rows.'), { statusCode: 400 });
+  const context = await recordContext(req);
+  const [cards, claims] = await Promise.all([fetchAllRows(req, TABLES.CREDIT_CARDS), fetchAllRows(req, 'COS_Imports')]);
+  const current = {
+    partners: context.partners.filter(p => !isDeleted(p.notes)).map(mapPartner),
+    allocations: context.allocations.filter(a => !visibleRow('allocations', a, context).deleted).map(mapAllocation),
+    creditCards: cards.filter(c => !visibleRow('credit-cards', c, context).deleted).map(mapCreditCard),
+  };
+  const preview = importTools.previewImport(body.kind, body.rows, current);
+  const results = [];
+  const claimTable = getApp(req).datastore().table('COS_Imports');
+  for (const item of preview) {
+    if (item.status !== 'ready') { results.push({ rowNumber: item.rowNumber, status: item.status, messages: item.messages }); continue; }
+    const key = require('node:crypto').createHash('sha256').update(importTools.importFingerprint(body.kind, item.data)).digest('hex');
+    const previous = claims.find(c => c.import_key === key);
+    if (previous) { results.push({ rowNumber: item.rowNumber, status: previous.status === 'completed' ? 'duplicate' : 'unconfirmed', messages: [previous.status === 'completed' ? 'Previously imported. Restore the original record if it was deleted.' : 'A previous attempt has an unconfirmed result. Inspect records and change history before retrying.'] }); continue; }
+    let claim;
+    try {
+      // import_key is unique in Catalyst: concurrent copies cannot both claim a row.
+      claim = await claimTable.insertRow({ import_key: key, entity_type: body.kind, entity_id: '', status: 'pending', occurred_at: new Date().toISOString() });
+      claims.push(claim);
+      const d = item.data;
+      const values = body.kind === 'partners' ? { name: d.name, phone: d.phone, email: d.email, notes: d.notes } : {
+        partner_id: d.partnerId, amount_rupees: d.amountRupees, profit_percent: String(d.profitPercent),
+        received_date: d.receivedDate, return_date: d.returnDate, credit_card_id: d.creditCardId, notes: d.notes,
+      };
+      const saved = await insertRow(req, resources[body.kind].table, values);
+      await claimTable.updateRow({ ROWID: claim.ROWID, status: 'completed', entity_id: String(saved.ROWID) });
+      results.push({ rowNumber: item.rowNumber, status: 'imported', id: String(saved.ROWID), messages: [] });
+    } catch {
+      // Never silently retry an uncertain financial write. The durable claim and
+      // change intent remain available to reconcile it without creating a copy.
+      results.push({ rowNumber: item.rowNumber, status: 'unconfirmed', messages: [claim ? 'Import result could not be confirmed. Inspect records and change history; this row will not be inserted again automatically.' : 'This row could not be reserved, possibly because another import is running. Refresh before retrying.'] });
+    }
+  }
+  return { results };
 }
 
 module.exports = async function(req, res) {
+  await Promise.all([combinationsReady, importsReady]);
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
@@ -327,9 +420,174 @@ module.exports = async function(req, res) {
 
   var url = req.url || "";
   var path = url.split("?")[0].replace(/^\/+/, "");
+  const query = new URLSearchParams(url.split("?")[1] || "");
   var method = req.method || "GET";
 
   try {
+    if (path === 'daily-summary/send' && method === 'POST') {
+      const input = await readBody(req);
+      // The recipient is fixed server-side; caller-supplied addresses are ignored.
+      if (process.env.VITE_USE_MOCK === 'true' || process.env.CAPITALOS_MOCK === 'true') return ok(res, { status: 'mock' });
+      const { deliverSummary } = require('./daily-summary.js');
+      const { renderDailySummary } = require('./daily-summary-pdf.js');
+      const result = await deliverSummary({ mode: 'manual', requestId: input.requestId,
+        table: name => getApp(req).datastore().table(name), render: renderDailySummary,
+        send: mail => smtpTransporter.sendMail({ from: 'CapitalOS <' + GMAIL_USER + '>', ...mail }),
+      });
+      return ok(res, result);
+    }
+    if (path === 'payment-groups' && method === 'POST') {
+      const input = await readBody(req);
+      const resource = resources[input.kind === 'capital' ? 'capital-returns' : 'profit-records'];
+      const type = input.kind === 'capital' ? 'capital-returns' : 'profit-records';
+      const result = await groupPayments(input, {
+        activity: getApp(req).datastore().table(persistence.ACTIVITY_TABLE),
+        events: () => fetchAllRows(req, persistence.ACTIVITY_TABLE),
+        today: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
+        fetchContext: async () => {
+          const [context, returns, profits] = await Promise.all([recordContext(req), fetchAllRows(req, TABLES.CAPITAL_RETURNS), fetchAllRows(req, TABLES.PROFIT_RECORDS)]);
+          return {
+            partnerActive: context.partners.some(p => String(p.ROWID) === input.partnerId && !isDeleted(p.notes)),
+            allocations: context.allocations.filter(a => !visibleRow('allocations', a, context).deleted).map(mapAllocation),
+            returns: returns.filter(r => !visibleRow('capital-returns', r, context).deleted).map(mapCapitalReturn),
+            profits: profits.filter(r => !visibleRow('profit-records', r, context).deleted).map(mapProfitRecord),
+          };
+        },
+        insert: row => insertRow(req, resource.table, row), map: resource.map,
+        readRecords: async () => {
+          const [rows, context] = await Promise.all([fetchAllRows(req, resource.table), recordContext(req)]);
+          return rows.filter(r => !visibleRow(type, r, context).deleted).map(resource.map);
+        },
+      });
+      const email = await groupPaymentEmail.sendOnce(input, result, {
+        activity: getApp(req).datastore().table(persistence.ACTIVITY_TABLE),
+        events: () => fetchAllRows(req, persistence.ACTIVITY_TABLE),
+        send: () => sendPartnerEmail(req, input.partnerId,
+          `${input.kind === 'profit' ? 'Profit Payment Confirmation' : 'Capital Return Confirmation'} — CapitalOS`,
+          async partnerName => {
+            const [allocations, cards] = await Promise.all([fetchAllRows(req, TABLES.ALLOCATIONS), fetchAllRows(req, TABLES.CREDIT_CARDS)]);
+            return groupPaymentEmail.groupedEmail(input, result, partnerName,
+              allocations.filter(a => !isDeleted(a.notes)).map(mapAllocation),
+              cards.filter(c => !isDeleted(c.notes)).map(mapCreditCard), APP_BASE_URL);
+          }),
+      });
+      return ok(res, { ...result, email });
+    }
+    if (path === 'imports' && method === 'POST') return ok(res, await importRecords(req, await readBody(req)));
+    if (resources[path] && method === 'GET') {
+      const resource = resources[path];
+      const [rows, context] = await Promise.all([fetchAllRows(req, resource.table), recordContext(req)]);
+      const deleted = query.get('deleted') === 'true';
+      return ok(res, rows.filter(row => visibleRow(path, row, context).deleted === deleted)
+        .map(row => deleted ? mapRecoverable(resource, row, context, path) : resource.map(row)));
+    }
+    if (path === 'activity' && method === 'GET') {
+      const rows = await fetchAllRows(req, persistence.ACTIVITY_TABLE);
+      return ok(res, rows.map(mapActivity).sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)));
+    }
+    if (path === 'reminder-events' && method === 'GET') {
+      return ok(res, (await fetchAllRows(req, persistence.REMINDER_TABLE)).map(mapReminder).sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)));
+    }
+    if (path === 'reminder-events' && method === 'POST') {
+      const body = await readBody(req);
+      if (!['prepared', 'sent', 'snoozed', 'note'].includes(body.action) || !['principal', 'profit-estimate'].includes(body.kind)) return badRequest(res, 'Invalid reminder action or obligation.');
+      if (!body.obligationId || String(body.obligationId).length > 255 || !Number.isFinite(body.amountRupees) || body.amountRupees < 0 || !Number.isSafeInteger(Math.round(body.amountRupees * 100))) return badRequest(res, 'Invalid reminder amount or identifier.');
+      if (!importTools.validDate(body.dueDate || '') || (body.action === 'snoozed' && !importTools.validDate(body.followUpDate || ''))) return badRequest(res, 'A valid due date and follow-up date are required.');
+      if (String(body.notes || '').length > 2000) return badRequest(res, 'Reminder notes must be 2,000 characters or fewer.');
+      const context = await recordContext(req);
+      const allocation = context.allocations.find(a => String(a.ROWID) === String(body.allocationId) && String(a.partner_id) === String(body.partnerId));
+      if (!allocation || visibleRow('allocations', allocation, context).deleted) return badRequest(res, 'Active contribution not found.');
+      const row = await getApp(req).datastore().table(persistence.REMINDER_TABLE).insertRow({
+        event_id: require('node:crypto').randomUUID(), obligation_id: String(body.obligationId),
+        partner_id: String(body.partnerId), allocation_id: String(body.allocationId), kind: body.kind,
+        action: body.action, channel: ['manual', 'whatsapp', 'phone', 'email'].includes(body.channel) ? body.channel : 'manual',
+        amount_paise: Math.round(body.amountRupees * 100), due_date: body.dueDate,
+        follow_up_date: body.action === 'snoozed' ? body.followUpDate : null,
+        notes: String(body.notes || ''), occurred_at: new Date().toISOString(),
+      });
+      return created(res, mapReminder(row));
+    }
+    const revertMatch = path.match(/^allocations\/([^/]+)\/revert-combination$/);
+    if (revertMatch && method === 'POST') {
+      const [aa, rr, pp] = await Promise.all([
+        fetchAllRows(req, TABLES.ALLOCATIONS), fetchAllRows(req, TABLES.CAPITAL_RETURNS), fetchAllRows(req, TABLES.PROFIT_RECORDS),
+      ]);
+      const active = aa.filter(r => !isDeleted(r.notes)).map(mapAllocation);
+      const target = active.find(a => a.id === revertMatch[1]);
+      // Include soft-deleted transactions: recording then deleting a payment
+      // must never make a previously used combination eligible again.
+      const reason = combinations.revertReason(target, active,
+        rr.filter(r => !target?.combination?.ignoredDeletedReturnIds?.includes(String(r.ROWID))).map(mapCapitalReturn),
+        pp.filter(r => !target?.combination?.ignoredDeletedProfitIds?.includes(String(r.ROWID))).map(mapProfitRecord));
+      if (reason) return badRequest(res, reason);
+      const row = aa.find(r => String(r.ROWID) === revertMatch[1]);
+      await updateRowById(req, TABLES.ALLOCATIONS, revertMatch[1], { notes: markDeleted(row.notes, new Date().toISOString()) });
+      return ok(res, { id: revertMatch[1] });
+    }
+    if (path === 'allocations/combine' && method === 'POST') {
+      const body = await readBody(req);
+      const context = await recordContext(req);
+      const [aa, rr, pp] = await Promise.all([
+        fetchAllRows(req, TABLES.ALLOCATIONS), fetchAllRows(req, TABLES.CAPITAL_RETURNS), fetchAllRows(req, TABLES.PROFIT_RECORDS),
+      ]);
+      let combined;
+      try {
+        combined = combinations.buildCombination(body,
+          aa.filter(r => !visibleRow('allocations', r, context).deleted).map(mapAllocation),
+          rr.filter(r => !visibleRow('capital-returns', r, context).deleted).map(mapCapitalReturn),
+          pp.filter(r => !visibleRow('profit-records', r, context).deleted).map(mapProfitRecord));
+      } catch (err) { return badRequest(res, err.message); }
+      combined.combination.ignoredDeletedReturnIds = rr.filter(r => isDeleted(r.notes)).map(r => String(r.ROWID));
+      combined.combination.ignoredDeletedProfitIds = pp.filter(r => isDeleted(r.notes)).map(r => String(r.ROWID));
+      const row = await insertRow(req, TABLES.ALLOCATIONS, {
+        partner_id: combined.partnerId, amount_rupees: combined.amountRupees,
+        profit_percent: String(combined.profitPercent), received_date: combined.receivedDate,
+        return_date: combined.returnDate, credit_card_id: combined.creditCardId,
+        notes: combinations.PREFIX + JSON.stringify({ combination: combined.combination, notes: '' }),
+      });
+      return created(res, mapAllocation(row));
+    }
+
+    // Prevent edits/deletions that could rewrite capital already transferred.
+    // New profit payments on a source remain allowed to settle its old debt.
+    const mutation = path.match(/^(allocations|capital-returns|profit-records)\/([^/]+)$/);
+    if (mutation && (method === 'PATCH' || method === 'DELETE')) {
+      const all = (await fetchAllRows(req, TABLES.ALLOCATIONS)).filter(r => !isDeleted(r.notes)).map(mapAllocation);
+      const linked = all.filter(a => a.combination);
+      const sourceIds = new Set(linked.flatMap(a => a.combination.sources.map(s => s.id)));
+      if (mutation[1] === 'allocations') {
+        if (sourceIds.has(mutation[2]) || (method === 'DELETE' && linked.some(a => a.id === mutation[2]))) return badRequest(res, 'Original combined contributions are preserved as history and cannot be edited or deleted.');
+      } else {
+        const table = mutation[1] === 'capital-returns' ? TABLES.CAPITAL_RETURNS : TABLES.PROFIT_RECORDS;
+        const row = (await fetchAllRows(req, table)).find(r => String(r.ROWID) === mutation[2]);
+        if (row && sourceIds.has(String(row.allocation_id))) {
+          const historical = mutation[1] === 'capital-returns' || linked.some(a => a.combination.sources.some(s => s.profitRecordIds.includes(mutation[2])));
+          if (historical) return badRequest(res, 'This original record is preserved in a capital combination.');
+        }
+      }
+    }
+
+    const recordAction = path.match(/^(partners|allocations|capital-returns|profit-records|credit-cards)\/([^/]+)(\/restore)?$/);
+    if (recordAction && ((method === 'DELETE' && !recordAction[3]) || (method === 'POST' && recordAction[3]))) {
+      const [, type, id] = recordAction;
+      const resource = resources[type];
+      const [rows, context] = await Promise.all([fetchAllRows(req, resource.table), recordContext(req)]);
+      const row = rows.find(r => String(r.ROWID) === id);
+      if (!row) return notFound(res);
+      if (method === 'POST') return ok(res, resource.map(await restoreRecord(req, type, row, context)));
+      if (type === 'credit-cards' && context.allocations.some(a => String(a.credit_card_id) === id && !visibleRow('allocations', a, context).deleted)) return badRequest(res, 'Reassign linked contributions before deleting this credit card.');
+      const now = persistence.deletedAt(row.notes) || new Date().toISOString();
+      if (!isDeleted(row.notes)) await updateRowById(req, resource.table, id, { notes: markDeleted(row.notes, now) });
+      return ok(res, { id, partnerId: type === 'partners' ? id : row.partner_id, deletedAt: now, originalNotes: row.notes || '' });
+    }
+    if (recordAction && method === 'PATCH') {
+      const [, type, id] = recordAction;
+      const context = await recordContext(req);
+      const row = (await fetchAllRows(req, resources[type].table)).find(r => String(r.ROWID) === id);
+      if (!row) return notFound(res);
+      if (visibleRow(type, row, context).deleted) return badRequest(res, 'Restore this record and its parent before editing.');
+    }
+
     // ── PATCH /partners/:id ───────────────────────────────────────────────────
     var partnerPatch = path.match(/^partners\/([^/?]+)$/);
     if (partnerPatch && method === "PATCH") {
@@ -342,14 +600,6 @@ module.exports = async function(req, res) {
       if (body.notes !== undefined) patchData.notes = String(body.notes).trim();
       var updatedPartner = await updateRowById(req, TABLES.PARTNERS, patchId, patchData);
       return ok(res, mapPartner(updatedPartner));
-    }
-
-    // ── DELETE /partners/:id ──────────────────────────────────────────────────
-    var partnerDelete = path.match(/^partners\/([^/?]+)$/);
-    if (partnerDelete && method === "DELETE") {
-      var partnerId = partnerDelete[1];
-      var result = await softDeletePartner(req, partnerId);
-      return ok(res, result);
     }
 
     if (path === "partners") {
@@ -378,6 +628,8 @@ module.exports = async function(req, res) {
       }
       if (method === "POST") {
         var body = await readBody(req);
+        const parents = await fetchAllRows(req, TABLES.PARTNERS);
+        if (!parents.some(p => String(p.ROWID) === String(body.partnerId) && !isDeleted(p.notes))) return badRequest(res, 'Active partner not found.');
         if (!body.partnerId) return badRequest(res, "partnerId is required");
         if (!body.amountRupees || body.amountRupees <= 0) return badRequest(res, "amountRupees must be > 0");
         if (!body.profitPercent || body.profitPercent <= 0) return badRequest(res, "profitPercent must be > 0");
@@ -390,6 +642,7 @@ module.exports = async function(req, res) {
           return_date: body.returnDate || null,
           credit_card_id: body.creditCardId ? String(body.creditCardId) : null,
           notes: String(body.notes || "").trim(),
+          cashback_data: JSON.stringify({ status: body.creditCardId ? 'unpaid' : 'not_applicable', notes: '' }),
         });
         var mappedAlloc = mapAllocation(inserted);
         // Fire-and-forget email — does not block the response
@@ -403,30 +656,28 @@ module.exports = async function(req, res) {
       }
     }
 
-    // ── DELETE /allocations/:id ───────────────────────────────────────────────
-    var allocDelete = path.match(/^allocations\/([^/?]+)$/);
-    if (allocDelete && method === "DELETE") {
-      var allocId = allocDelete[1];
-      var allAllocs = await fetchAllRows(req, TABLES.ALLOCATIONS);
-      var allocRow = allAllocs.find(function(r) { return String(r.ROWID) === String(allocId); });
-      if (!allocRow) return notFound(res);
-      var now = new Date().toISOString();
-      await updateRowById(req, TABLES.ALLOCATIONS, allocId, { notes: markDeleted(allocRow.notes, now) });
-      return ok(res, { id: allocId, deletedAt: now, originalNotes: allocRow.notes || "" });
-    }
-
-    // ── POST /allocations/:id/restore ────────────────────────────────────────
-    var allocRestore = path.match(/^allocations\/([^/?]+)\/restore$/);
-    if (allocRestore && method === "POST") {
-      var allocId = allocRestore[1];
-      var allAllocs = await fetchAllRows(req, TABLES.ALLOCATIONS);
-      var allocRow = allAllocs.find(function(r) { return String(r.ROWID) === String(allocId); });
-      if (!allocRow) return notFound(res);
-      var restoredNotes = isDeleted(allocRow.notes)
-        ? allocRow.notes.replace(/^DELETED:[^\n]*\n?/, "")
-        : (allocRow.notes || "");
-      await updateRowById(req, TABLES.ALLOCATIONS, allocId, { notes: restoredNotes });
-      return ok(res, mapAllocation(Object.assign({}, allocRow, { notes: restoredNotes })));
+    // A single field on the contribution makes retries/edits update one settlement.
+    const cashbackMatch = path.match(/^allocations\/([^/]+)\/cashback$/);
+    if (cashbackMatch && method === 'PATCH') {
+      const body = await readBody(req);
+      const context = await recordContext(req);
+      const row = context.allocations.find(r => String(r.ROWID) === cashbackMatch[1]);
+      if (!row) return notFound(res);
+      if (visibleRow('allocations', row, context).deleted) return badRequest(res, 'Restore this contribution and its partner before editing cashback.');
+      const allocation = mapAllocation(row);
+      let cashback;
+      try { cashback = validateCashback(body, allocation, new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })); }
+      catch (error) { return badRequest(res, error.message); }
+      const now = new Date().toISOString();
+      cashback.updatedAt = now;
+      if (cashback.status === 'paid') cashback.createdAt = allocation.cashback?.createdAt || now;
+      const updated = await updateRowById(req, TABLES.ALLOCATIONS, allocation.id, { cashback_data: JSON.stringify(cashback) });
+      if (cashback.status === 'paid' && cashback.amountRupees != null && body.sendEmail === true) {
+        sendPartnerEmail(req, allocation.partnerId, 'Cashback Sharing — CapitalOS',
+          name => profitEmail(req, name, { ...cashback, partnerId: allocation.partnerId }, allocation,
+            context.allocations.filter(r => !visibleRow('allocations', r, context).deleted).map(mapAllocation), true));
+      }
+      return ok(res, mapAllocation(updated));
     }
 
     // ── PATCH /allocations/:id ────────────────────────────────────────────────
@@ -434,12 +685,18 @@ module.exports = async function(req, res) {
     if (allocPatch && method === "PATCH") {
       var body = await readBody(req);
       var patchFields = {};
+      const currentRow = (await fetchAllRows(req, TABLES.ALLOCATIONS)).find(r => String(r.ROWID) === allocPatch[1]);
+      if (!currentRow) return notFound(res);
+      const current = mapAllocation(currentRow);
+      if (current.cashback?.status === 'paid' && ((body.creditCardId !== undefined && !body.creditCardId) || (body.receivedDate && body.receivedDate > current.cashback.paidDate))) return badRequest(res, 'Correct the cashback payment before removing its card source or moving the contribution after its payment date.');
+      if (current.combination && ((body.amountRupees !== undefined && Number(body.amountRupees) !== current.amountRupees) || (body.receivedDate !== undefined && body.receivedDate !== current.receivedDate) || (body.creditCardId !== undefined && body.creditCardId !== current.creditCardId))) return badRequest(res, 'Combined capital amount, date and source must retain their original values.');
       if (body.returnDate !== undefined) patchFields.return_date = body.returnDate || null;
       if (body.amountRupees !== undefined) patchFields.amount_rupees = Number(body.amountRupees);
       if (body.profitPercent !== undefined) patchFields.profit_percent = String(body.profitPercent);
       if (body.receivedDate !== undefined) patchFields.received_date = body.receivedDate;
       if (body.notes !== undefined) patchFields.notes = String(body.notes).trim();
       if (body.creditCardId !== undefined) patchFields.credit_card_id = body.creditCardId ? String(body.creditCardId) : null;
+      if (current.combination) patchFields.notes = combinations.PREFIX + JSON.stringify({ combination: { ...current.combination, revertBlocked: true }, notes: body.notes !== undefined ? String(body.notes).trim() : current.notes });
       var updated = await updateRowById(req, TABLES.ALLOCATIONS, allocPatch[1], patchFields);
       return ok(res, mapAllocation(updated));
     }
@@ -451,10 +708,19 @@ module.exports = async function(req, res) {
       }
       if (method === "POST") {
         var body = await readBody(req);
+        const partnerRows = await fetchAllRows(req, TABLES.PARTNERS);
+        if (!partnerRows.some(p => String(p.ROWID) === String(body.partnerId) && !isDeleted(p.notes))) return badRequest(res, 'Active partner not found.');
         if (!body.allocationId) return badRequest(res, "allocationId is required");
         if (!body.partnerId) return badRequest(res, "partnerId is required");
         if (!body.amountRupees || body.amountRupees <= 0) return badRequest(res, "amountRupees must be > 0");
         if (!body.returnedDate) return badRequest(res, "returnedDate is required");
+        const allocations = (await fetchAllRows(req, TABLES.ALLOCATIONS)).filter(r => !isDeleted(r.notes)).map(mapAllocation);
+        const allocation = allocations.find(a => a.id === String(body.allocationId));
+        if (!allocation || allocation.partnerId !== String(body.partnerId)) return badRequest(res, 'Contribution not found for partner.');
+        if (allocations.some(a => a.combination?.sources.some(s => s.id === allocation.id))) return badRequest(res, 'Return capital against the combined entry.');
+        if (body.returnedDate < allocation.receivedDate || allocation.receivedDate > new Date().toISOString().slice(0, 10)) return badRequest(res, 'Combined capital is not yet effective.');
+        const previousReturns = (await fetchAllRows(req, TABLES.CAPITAL_RETURNS)).filter(r => !isDeleted(r.notes) && String(r.allocation_id) === allocation.id);
+        if (Number(body.amountRupees) > allocation.amountRupees - previousReturns.reduce((s, r) => s + Number(r.amount_rupees), 0)) return badRequest(res, 'Return exceeds outstanding capital.');
         var inserted = await insertRow(req, TABLES.CAPITAL_RETURNS, {
           allocation_id: String(body.allocationId),
           partner_id: String(body.partnerId),
@@ -471,32 +737,6 @@ module.exports = async function(req, res) {
         );
         return created(res, mappedReturn);
       }
-    }
-
-    // ── DELETE /capital-returns/:id ───────────────────────────────────────────
-    var crDelete = path.match(/^capital-returns\/([^/?]+)$/);
-    if (crDelete && method === "DELETE") {
-      var crId = crDelete[1];
-      var allCRs = await fetchAllRows(req, TABLES.CAPITAL_RETURNS);
-      var crRow = allCRs.find(function(r) { return String(r.ROWID) === String(crId); });
-      if (!crRow) return notFound(res);
-      var now = new Date().toISOString();
-      await updateRowById(req, TABLES.CAPITAL_RETURNS, crId, { notes: markDeleted(crRow.notes, now) });
-      return ok(res, { id: crId, deletedAt: now, originalNotes: crRow.notes || "" });
-    }
-
-    // ── POST /capital-returns/:id/restore ─────────────────────────────────────
-    var crRestore = path.match(/^capital-returns\/([^/?]+)\/restore$/);
-    if (crRestore && method === "POST") {
-      var crId = crRestore[1];
-      var allCRs = await fetchAllRows(req, TABLES.CAPITAL_RETURNS);
-      var crRow = allCRs.find(function(r) { return String(r.ROWID) === String(crId); });
-      if (!crRow) return notFound(res);
-      var restoredNotes = isDeleted(crRow.notes)
-        ? crRow.notes.replace(/^DELETED:[^\n]*\n?/, "")
-        : (crRow.notes || "");
-      await updateRowById(req, TABLES.CAPITAL_RETURNS, crId, { notes: restoredNotes });
-      return ok(res, mapCapitalReturn(Object.assign({}, crRow, { notes: restoredNotes })));
     }
 
     // ── PATCH /capital-returns/:id ────────────────────────────────────────────
@@ -518,10 +758,21 @@ module.exports = async function(req, res) {
       }
       if (method === "POST") {
         var body = await readBody(req);
+        const partnerRows = await fetchAllRows(req, TABLES.PARTNERS);
+        if (!partnerRows.some(p => String(p.ROWID) === String(body.partnerId) && !isDeleted(p.notes))) return badRequest(res, 'Active partner not found.');
         if (!body.allocationId) return badRequest(res, "allocationId is required");
         if (!body.partnerId) return badRequest(res, "partnerId is required");
         if (!body.amountRupees || body.amountRupees <= 0) return badRequest(res, "amountRupees must be > 0");
         if (!body.paidDate) return badRequest(res, "paidDate is required");
+        const allocations = (await fetchAllRows(req, TABLES.ALLOCATIONS)).filter(r => !isDeleted(r.notes)).map(mapAllocation);
+        const allocation = allocations.find(a => a.id === String(body.allocationId));
+        if (!allocation || allocation.partnerId !== String(body.partnerId)) return badRequest(res, 'Contribution not found for partner.');
+        if (body.paidDate < allocation.receivedDate) return badRequest(res, 'Payment cannot precede the effective date.');
+        const source = allocations.flatMap(a => a.combination?.sources || []).find(s => s.id === allocation.id);
+        if (source) {
+          const paid = (await fetchAllRows(req, TABLES.PROFIT_RECORDS)).filter(r => !isDeleted(r.notes) && String(r.allocation_id) === allocation.id && !source.profitRecordIds.includes(String(r.ROWID))).reduce((s, r) => s + Number(r.amount_rupees), 0);
+          if (Number(body.amountRupees) > source.pending - paid || String(body.notes || '').includes('Capital reinvested')) return badRequest(res, 'Only remaining original profit can be paid on this contribution.');
+        }
         var inserted = await insertRow(req, TABLES.PROFIT_RECORDS, {
           allocation_id: String(body.allocationId),
           partner_id: String(body.partnerId),
@@ -533,37 +784,11 @@ module.exports = async function(req, res) {
         sendPartnerEmail(
           req,
           body.partnerId,
-          "Profit Payment Recorded — CapitalOS",
-          profitEmail("Partner", body.partnerId, body.amountRupees, body.paidDate)
+          "Profit Payment Confirmation — CapitalOS",
+          partnerName => profitEmail(req, partnerName, mappedProfit, allocation, allocations)
         );
         return created(res, mappedProfit);
       }
-    }
-
-    // ── DELETE /profit-records/:id ────────────────────────────────────────────
-    var prDelete = path.match(/^profit-records\/([^/?]+)$/);
-    if (prDelete && method === "DELETE") {
-      var prId = prDelete[1];
-      var allPRs = await fetchAllRows(req, TABLES.PROFIT_RECORDS);
-      var prRow = allPRs.find(function(r) { return String(r.ROWID) === String(prId); });
-      if (!prRow) return notFound(res);
-      var now = new Date().toISOString();
-      await updateRowById(req, TABLES.PROFIT_RECORDS, prId, { notes: markDeleted(prRow.notes, now) });
-      return ok(res, { id: prId, deletedAt: now, originalNotes: prRow.notes || "" });
-    }
-
-    // ── POST /profit-records/:id/restore ──────────────────────────────────────
-    var prRestore = path.match(/^profit-records\/([^/?]+)\/restore$/);
-    if (prRestore && method === "POST") {
-      var prId = prRestore[1];
-      var allPRs = await fetchAllRows(req, TABLES.PROFIT_RECORDS);
-      var prRow = allPRs.find(function(r) { return String(r.ROWID) === String(prId); });
-      if (!prRow) return notFound(res);
-      var restoredNotes = isDeleted(prRow.notes)
-        ? prRow.notes.replace(/^DELETED:[^\n]*\n?/, "")
-        : (prRow.notes || "");
-      await updateRowById(req, TABLES.PROFIT_RECORDS, prId, { notes: restoredNotes });
-      return ok(res, mapProfitRecord(Object.assign({}, prRow, { notes: restoredNotes })));
     }
 
     // ── PATCH /profit-records/:id ─────────────────────────────────────────────
@@ -589,6 +814,8 @@ module.exports = async function(req, res) {
       }
       if (method === "POST") {
         var body = await readBody(req);
+        const parents = await fetchAllRows(req, TABLES.PARTNERS);
+        if (!parents.some(p => String(p.ROWID) === String(body.partnerId) && !isDeleted(p.notes))) return badRequest(res, 'Active partner not found.');
         if (!body.partnerId) return badRequest(res, "partnerId is required");
         if (!body.cardName || !String(body.cardName).trim()) return badRequest(res, "cardName is required");
         if (body.cardLimit === undefined || body.cardLimit < 0) return badRequest(res, "cardLimit is required");
@@ -620,18 +847,6 @@ module.exports = async function(req, res) {
       if (body.notes !== undefined) patchFields.notes = String(body.notes).trim();
       var updated = await updateRowById(req, TABLES.CREDIT_CARDS, ccPatch[1], patchFields);
       return ok(res, mapCreditCard(updated));
-    }
-
-    // ── DELETE /credit-cards/:id ──────────────────────────────────────────────
-    var ccDelete = path.match(/^credit-cards\/([^/?]+)$/);
-    if (ccDelete && method === "DELETE") {
-      var ccId = ccDelete[1];
-      var allCCs = await fetchAllRows(req, TABLES.CREDIT_CARDS);
-      var ccRow = allCCs.find(function(r) { return String(r.ROWID) === String(ccId); });
-      if (!ccRow) return notFound(res);
-      var now = new Date().toISOString();
-      await updateRowById(req, TABLES.CREDIT_CARDS, ccId, { notes: markDeleted(ccRow.notes, now) });
-      return ok(res, { id: ccId, deletedAt: now });
     }
 
     // ── GET /list-tables ─────────────────────────────────────────────────────

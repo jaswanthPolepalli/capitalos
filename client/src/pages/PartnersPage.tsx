@@ -1,3 +1,4 @@
+import { RecordRow } from "../components/RecordRow";
 import {
   AlertTriangle,
   ArrowDown,
@@ -276,15 +277,15 @@ export function PartnersPage() {
   function handleExportCSV() {
     downloadCSV(
       csvFilename("partners"),
-      ["Partner", "Phone", "Email", "Total Capital (₹)", "Capital Outstanding (₹)", "Capital Returned (₹)", "Profit Paid (₹)", "Profit Pending (₹)", "Exp. Monthly Profit (₹)", "Next Return Date", "Since", "Status"],
-      sorted.map(({ partner, totalCapital, capitalOutstanding, totalCapitalReturned, totalProfitPaid, totalProfitPending, expectedMonthlyProfit, nextReturnDate, urgency }) => [
+      ["Partner", "Phone", "Email", "Total Capital (₹)", "Capital Outstanding (₹)", "Capital Returned (₹)", "Regular Profit Paid (₹)", "Cashback Paid (₹)", "Total Profits Received (₹)", "Unrecorded Cashback Amounts", "Profit Pending (₹)", "Exp. Monthly Profit (₹)", "Next Return Date", "Since", "Status"],
+      sorted.map(({ partner, totalCapital, capitalOutstanding, totalCapitalReturned, totalProfitPaid, totalCashbackPaid, totalProfitsReceived, unknownCashbackCount, totalProfitPending, expectedMonthlyProfit, nextReturnDate, urgency }) => [
         partner.name,
         partner.phone || "",
         partner.email || "",
         totalCapital,
         capitalOutstanding,
         totalCapitalReturned,
-        totalProfitPaid,
+        totalProfitPaid, totalCashbackPaid, totalProfitsReceived, unknownCashbackCount,
         totalProfitPending,
         expectedMonthlyProfit,
         nextReturnDate || "",
@@ -402,7 +403,7 @@ export function PartnersPage() {
                 Outstanding
                 <SortButton col="capitalOutstanding" current={sortKey} dir={sortDir} onClick={() => toggleSort("capitalOutstanding")} />
               </th>
-              <th className="table-th table-th--money">Profit paid</th>
+              <th className="table-th table-th--money">Regular profit paid</th><th className="table-th table-th--money">Cashback paid</th><th className="table-th table-th--money">Total profits received</th>
               <th className="table-th table-th--money">
                 Profit pending
                 <SortButton col="totalProfitPending" current={sortKey} dir={sortDir} onClick={() => toggleSort("totalProfitPending")} />
@@ -418,7 +419,7 @@ export function PartnersPage() {
           <tbody>
             {paginated.length === 0 ? (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={11}>
                   <div className="table-empty">
                     <span className="empty-state__icon"><IndianRupee size={22} /></span>
                     <h3>{search ? "No partners match your search" : "No partners yet"}</h3>
@@ -432,10 +433,10 @@ export function PartnersPage() {
                 </td>
               </tr>
             ) : (
-              paginated.map(({ partner, totalCapital, capitalOutstanding, totalProfitPaid, totalProfitPending, expectedMonthlyProfit, nextReturnDate, urgency }) => {
+              paginated.map(({ partner, totalCapital, capitalOutstanding, totalProfitPaid, totalCashbackPaid, totalProfitsReceived, unknownCashbackCount, totalProfitPending, expectedMonthlyProfit, nextReturnDate, urgency }) => {
                 const isOverdue = nextReturnDate ? nextReturnDate < today : false;
                 return (
-                  <tr className={`table-row${urgency === "overdue" ? " table-row--overdue" : urgency === "attention" ? " table-row--attention" : ""}`} key={partner.id}>
+                  <RecordRow className={`table-row${urgency === "overdue" ? " table-row--overdue" : urgency === "attention" ? " table-row--attention" : ""}`} key={partner.id}>
                     <td className="table-cell table-cell--urgency">
                       <UrgencyDot level={urgency} />
                     </td>
@@ -457,6 +458,8 @@ export function PartnersPage() {
                     <td className="table-cell table-cell--money" data-label="Profit paid" style={{ color: "var(--incoming)" }}>
                       {fmt(totalProfitPaid)}
                     </td>
+                    <td className="table-cell table-cell--money" data-label="Cashback paid">{fmt(totalCashbackPaid)}{unknownCashbackCount > 0 && <small> + {unknownCashbackCount} unrecorded</small>}</td>
+                    <td className="table-cell table-cell--money" data-label="Total profits received">{fmt(totalProfitsReceived)}{unknownCashbackCount > 0 && <small> (known amounts)</small>}</td>
                     <td className="table-cell table-cell--money" data-label="Profit pending" style={{ color: totalProfitPending > 0 ? "var(--outgoing)" : expectedMonthlyProfit > 0 ? "var(--text-soft)" : "var(--muted)" }}>
                       {totalProfitPending > 0 ? (
                         <>
@@ -482,7 +485,7 @@ export function PartnersPage() {
                         <ChevronRight size={17} />
                       </Link>
                     </td>
-                  </tr>
+                  </RecordRow>
                 );
               })
             )}

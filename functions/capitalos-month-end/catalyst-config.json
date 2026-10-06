@@ -1,0 +1,12 @@
+{
+  "deployment": {
+    "name": "capitalos-month-end",
+    "stack": "node24",
+    "type": "job",
+    "env_variables": {
+      "MONTH_END_EMAILS_ENABLED": "false",
+      "APP_BASE_URL": "https://capitalos-60088793510.development.catalystserverless.in/app"
+    }
+  },
+  "execution": { "main": "index.js" }
+}

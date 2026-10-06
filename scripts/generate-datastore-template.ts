@@ -80,7 +80,7 @@ function createAdminComponents(table: TableDefinition): IacComponent[] {
       properties: {
         role_name: "App Administrator",
         type: "App Administrator",
-        table_permissions: ["SELECT", "UPDATE", "INSERT"],
+        table_permissions: ["COS_Activity", "COS_Reminders"].includes(table.name) ? ["SELECT", "INSERT"] : ["SELECT", "UPDATE", "INSERT"],
         table_name: table.name,
       },
       dependsOn: [`Datastore.table.${table.name}`],

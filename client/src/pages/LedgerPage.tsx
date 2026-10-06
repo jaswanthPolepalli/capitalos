@@ -1,3 +1,5 @@
+import { RecordRow } from "../components/RecordRow";
+import { EditEntryModal } from "../components/EditEntryModal";
 /**
  * Ledger — audit log of all financial events.
  * Filters: partner, event type, date range.
@@ -5,9 +7,9 @@
  * Shows entries newest-first with date + time display.
  */
 
-import { ArrowDownLeft, ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, Pencil, Search, Trash2, TrendingDown, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, CreditCard as CreditCardIcon, Pencil, Search, Trash2, TrendingDown, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { PageHeader } from "../components/PageHeader";
 import { formatDate } from "../lib/format";
@@ -15,9 +17,9 @@ import type { LedgerEvent, LedgerEventType } from "../store";
 import {
   deleteAllocation, deleteCapitalReturn, deleteProfitRecord,
   restoreAllocation, restoreCapitalReturn, restoreProfitRecord,
-  updateAllocation, updateCapitalReturn, updateProfitRecord,
 } from "../store";
 import { useStore } from "../useStore";
+import { useRole } from "../context/RoleContext";
 
 const PAGE_SIZE = 25;
 
@@ -29,8 +31,32 @@ function fmt(rupees: number): string {
   }).format(rupees);
 }
 
-/** Format a ledger event's date — shows date only (time is implicit via ordering) */
+/**
+ * Format a ledger event's date.
+ * If the event has a real createdAt time (not a synthetic midnight value),
+ * shows "DD MMM YYYY, HH:mm:ss" so same-day ordering is visible.
+ */
 function formatLedgerDate(event: LedgerEvent): string {
+  const ca = event.createdAt || "";
+  // Synthetic createdAt values are of the form "YYYY-MM-DDT00:00:00.000000000Z"
+  // Real ones have a non-zero time from new Date().toISOString() or Catalyst CREATEDTIME
+  const hasRealTime = ca.includes("T") && !ca.match(/T00:00:00\.\d+Z$/);
+  if (hasRealTime) {
+    // Catalyst Datastore (IST-based servers) stores CREATEDTIME as IST wall-clock
+    // time but serialises it with a "Z" (UTC) suffix — meaning no timezone
+    // conversion is needed. We simply read the UTC fields of the Date object
+    // which give us the original IST digits as entered.
+    const d = new Date(ca);
+    const hh = String(d.getUTCHours()).padStart(2, "0");
+    const mm = String(d.getUTCMinutes()).padStart(2, "0");
+    const ss = String(d.getUTCSeconds()).padStart(2, "0");
+    // For the date part, also read UTC fields to stay consistent
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sept","Oct","Nov","Dec"];
+    const mon = months[d.getUTCMonth()] ?? "";
+    const yr = d.getUTCFullYear();
+    return `${day} ${mon} ${yr}, ${hh}:${mm}:${ss}`;
+  }
   return formatDate(event.date);
 }
 
@@ -38,12 +64,14 @@ const EVENT_LABELS: Record<LedgerEventType, string> = {
   CAPITAL_RECEIVED: "Capital received",
   CAPITAL_RETURNED: "Capital returned",
   PROFIT_PAID: "Profit paid",
+  CASHBACK_PAID: "Cashback sharing",
 };
 
 const EVENT_TONE: Record<LedgerEventType, string> = {
   CAPITAL_RECEIVED: "var(--incoming)",
   CAPITAL_RETURNED: "var(--accent)",
   PROFIT_PAID: "var(--outgoing)",
+  CASHBACK_PAID: "var(--outgoing)",
 };
 
 function EventIcon({ type }: { type: LedgerEventType }) {
@@ -85,7 +113,7 @@ function ConfirmDeleteModal({
                 {EVENT_LABELS[event.eventType]}
               </span>
             </div>
-            <strong>{fmt(event.amountRupees)}</strong> &nbsp;·&nbsp; {formatDate(event.date)}
+            <strong>{event.amountUnknown ? "Amount not recorded" : fmt(event.amountRupees)}</strong> &nbsp;·&nbsp; {formatDate(event.date)}
             {event.notes && <span style={{ color: "var(--muted)" }}> · {event.notes}</span>}
           </div>
 
@@ -120,155 +148,6 @@ function ConfirmDeleteModal({
 }
 
 // ─── Edit Entry Modal ─────────────────────────────────────────────────────────
-
-function EditEntryModal({
-  event,
-  allocationSummaries,
-  onClose,
-}: {
-  event: LedgerEvent;
-  allocationSummaries: import("../store").AllocationSummary[];
-  onClose: () => void;
-}) {
-  const [amountStr, setAmountStr] = useState(String(event.amountRupees));
-  const [date, setDate] = useState(
-    event.eventType === "PROFIT_PAID" ? (event as { paidDate?: string }).paidDate || event.date
-      : event.eventType === "CAPITAL_RETURNED" ? (event as { returnedDate?: string }).returnedDate || event.date
-      : event.date
-  );
-  const [notes, setNotes] = useState(event.notes || "");
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-
-  // For CAPITAL_RECEIVED: allow editing the profit percentage
-  const alloc = allocationSummaries.find((a) => a.id === event.allocationId);
-  const [profitPercentStr, setProfitPercentStr] = useState(
-    event.eventType === "CAPITAL_RECEIVED" ? String(alloc?.profitPercent ?? "") : ""
-  );
-
-  const dateLabel =
-    event.eventType === "PROFIT_PAID" ? "Date paid"
-    : event.eventType === "CAPITAL_RETURNED" ? "Date returned"
-    : "Date received";
-
-  function validate() {
-    const e: Record<string, string> = {};
-    const amt = Number(amountStr);
-    if (!amountStr || isNaN(amt) || amt <= 0) e.amount = "Enter a valid amount";
-    if (!date) e.date = "Required";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  }
-
-  async function handleSave(ev: React.FormEvent) {
-    ev.preventDefault();
-    if (!validate()) return;
-    setSaving(true);
-    try {
-      const amt = Math.round(Number(amountStr));
-      if (event.eventType === "PROFIT_PAID") {
-        await updateProfitRecord(event.refId, { amountRupees: amt, paidDate: date, notes });
-      } else if (event.eventType === "CAPITAL_RETURNED") {
-        await updateCapitalReturn(event.refId, { amountRupees: amt, returnedDate: date, notes });
-      } else {
-        const pct = Number(profitPercentStr);
-        await updateAllocation(event.refId, {
-          amountRupees: amt,
-          receivedDate: date,
-          notes,
-          ...(profitPercentStr && !isNaN(pct) && pct > 0 ? { profitPercent: pct } : {}),
-        });
-      }
-      onClose();
-    } catch (err) {
-      console.error("Edit failed:", err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-entry-title">
-      <div className="modal">
-        <div className="modal__header">
-          <h2 id="edit-entry-title">
-            <Pencil size={15} style={{ verticalAlign: "middle", marginRight: 6 }} />
-            Edit Entry
-          </h2>
-          <button className="icon-button" onClick={onClose} type="button"><X size={18} /></button>
-        </div>
-        <form className="modal__body" onSubmit={handleSave} noValidate>
-          <div className="form-hint" style={{ marginBottom: 12 }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <EventIcon type={event.eventType} />
-              <span style={{ fontWeight: 700, fontSize: 12, color: EVENT_TONE[event.eventType] }}>
-                {EVENT_LABELS[event.eventType]}
-              </span>
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-field">
-              <label className="form-label" htmlFor="edit-amt">Amount (₹) *</label>
-              <input
-                id="edit-amt"
-                className={`form-input ${errors.amount ? "form-input--error" : ""}`}
-                type="number"
-                min="1"
-                value={amountStr}
-                onChange={(e) => { setAmountStr(e.target.value); setErrors((p) => ({ ...p, amount: "" })); }}
-                autoFocus
-              />
-              {errors.amount && <span className="form-error">{errors.amount}</span>}
-            </div>
-            <div className="form-field">
-              <label className="form-label" htmlFor="edit-date">{dateLabel} *</label>
-              <input
-                id="edit-date"
-                className={`form-input ${errors.date ? "form-input--error" : ""}`}
-                type="date"
-                value={date}
-                onChange={(e) => { setDate(e.target.value); setErrors((p) => ({ ...p, date: "" })); }}
-              />
-              {errors.date && <span className="form-error">{errors.date}</span>}
-            </div>
-          </div>
-          {event.eventType === "CAPITAL_RECEIVED" && (
-            <div className="form-field">
-              <label className="form-label" htmlFor="edit-profit-pct">Profit % per month *</label>
-              <input
-                id="edit-profit-pct"
-                className="form-input"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={profitPercentStr}
-                onChange={(e) => setProfitPercentStr(e.target.value)}
-                placeholder="e.g. 3.5"
-              />
-            </div>
-          )}
-          <div className="form-field">
-            <label className="form-label" htmlFor="edit-notes">Notes</label>
-            <textarea
-              id="edit-notes"
-              className="form-input form-textarea"
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add a note…"
-            />
-          </div>
-          <div className="modal__footer">
-            <button className="button button--secondary" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button--primary" type="submit" disabled={saving}>
-              {saving ? "Saving…" : <><Pencil size={14} /> Save Changes</>}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 // ─── Undo Toast ───────────────────────────────────────────────────────────────
 
@@ -386,13 +265,17 @@ function Pagination({
 
 export function LedgerPage() {
   const { ledger, partners, allocationSummaries } = useStore();
+  const { isCFO } = useRole();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [filterPartnerId, setFilterPartnerId] = useState("ALL");
   const [filterType, setFilterType] = useState<LedgerEventType | "ALL">("ALL");
-  const [filterFrom, setFilterFrom] = useState("");
-  const [filterTo, setFilterTo] = useState("");
+  const [filterFrom, setFilterFrom] = useState(searchParams.get("from") ?? "");
+  const [filterTo, setFilterTo] = useState(searchParams.get("to") ?? "");
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
   // Modal state
   const [confirmDelete, setConfirmDelete] = useState<LedgerEvent | null>(null);
@@ -402,6 +285,9 @@ export function LedgerPage() {
   // Undo toast
   const [undoToast, setUndoToast] = useState<UndoToastEntry | null>(null);
   const undoToastRef = useRef<UndoToastEntry | null>(null);
+
+  // Notes hover popup — position is computed from the hovered cell's bounding rect
+  const [notesTooltip, setNotesTooltip] = useState<{ text: string; top: number; left: number } | null>(null);
 
   // Keep ref in sync so timer callbacks can access latest value
   useEffect(() => { undoToastRef.current = undoToast; }, [undoToast]);
@@ -436,10 +322,39 @@ export function LedgerPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  // Deep-link support: /ledger?highlight=<eventId> resets filters, jumps to the
+  // right page, and briefly highlights the matching row.
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (!highlightId) return;
+    const idx = ledger.findIndex((e) => e.id === highlightId);
+    if (idx === -1) return;
+    setFilterPartnerId("ALL");
+    setFilterType("ALL");
+    setFilterFrom("");
+    setFilterTo("");
+    setSearchQuery("");
+    setPage(Math.floor(idx / PAGE_SIZE) + 1);
+    setHighlightedId(highlightId);
+    setSearchParams({}, { replace: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, ledger]);
+
+  // Scroll once per linked entry. Background refreshes and hover updates must
+  // not pull the reader back, or cancel the timer when the URL is cleared.
+  useEffect(() => {
+    if (!highlightedId) return;
+    highlightedRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = setTimeout(() => setHighlightedId(null), 4000);
+    return () => clearTimeout(timer);
+  }, [highlightedId]);
+
   // Summaries (of ALL filtered, not just current page)
   const totalIn = filtered.filter((e) => e.eventType === "CAPITAL_RECEIVED").reduce((s, e) => s + e.amountRupees, 0);
   const totalReturned = filtered.filter((e) => e.eventType === "CAPITAL_RETURNED").reduce((s, e) => s + e.amountRupees, 0);
   const totalProfit = filtered.filter((e) => e.eventType === "PROFIT_PAID").reduce((s, e) => s + e.amountRupees, 0);
+
+  const totalCashback = filtered.filter(e => e.eventType === "CASHBACK_PAID").reduce((sum, e) => sum + e.amountRupees, 0);
 
   function dismissToast() {
     if (undoToastRef.current) clearTimeout(undoToastRef.current.timer);
@@ -447,6 +362,7 @@ export function LedgerPage() {
   }
 
   async function handleDelete(event: LedgerEvent) {
+    if (event.eventType === "CASHBACK_PAID") { setEditEvent(event); setConfirmDelete(null); return; }
     setIsDeleting(true);
     try {
       if (event.eventType === "PROFIT_PAID") await deleteProfitRecord(event.refId);
@@ -491,13 +407,14 @@ export function LedgerPage() {
   return (
     <div className="list-page">
       <PageHeader
-        eyebrow="Audit trail"
+        eyebrow="Transactions"
         title="Ledger"
-        description="Complete record of all financial events — capital received, returned, and profit paid."
+        description="Current transactions — capital received, returned, and profit paid. Previous values are preserved in Change history."
+        actions={<Link className="button button--secondary" to="/activity">Change history</Link>}
       />
 
       {/* Confirm delete modal */}
-      {confirmDelete && (
+      {isCFO && confirmDelete && (
         <ConfirmDeleteModal
           event={confirmDelete}
           onConfirm={() => handleDelete(confirmDelete)}
@@ -507,7 +424,7 @@ export function LedgerPage() {
       )}
 
       {/* Edit modal */}
-      {editEvent && (
+      {isCFO && editEvent && (
         <EditEntryModal
           event={editEvent}
           allocationSummaries={allocationSummaries}
@@ -543,12 +460,17 @@ export function LedgerPage() {
           </div>
           <div className="ledger-summary__divider" />
           <div className="ledger-summary__item">
-            <span>Entries</span>
+            <span>Cashback shared</span><strong style={{ fontSize: 16, color: "var(--outgoing)" }}>{fmt(totalCashback)}</strong>
+          </div>
+          <div className="ledger-summary__divider" />
+          <div className="ledger-summary__item">
+            <span>Total profits received</span><strong>{fmt(totalProfit + totalCashback)}</strong></div><div className="ledger-summary__item"><span>Entries</span>
             <strong style={{ fontSize: 16 }}>{filtered.length}</strong>
           </div>
         </div>
       )}
 
+      {filtered.some(e => e.amountUnknown) && <p className="tools-hint">Some historical cashback amounts are not recorded. Totals include known amounts only.</p>}
       {/* Filters */}
       <div className="list-page__toolbar">
         <div className="filter-bar ledger-filter-bar">
@@ -578,6 +500,7 @@ export function LedgerPage() {
               <option value="CAPITAL_RECEIVED">Capital received</option>
               <option value="CAPITAL_RETURNED">Capital returned</option>
               <option value="PROFIT_PAID">Profit paid</option>
+              <option value="CASHBACK_PAID">Cashback sharing</option>
             </select>
             <div className="ledger-date-range">
               <span className="date-range-label">From</span>
@@ -605,6 +528,7 @@ export function LedgerPage() {
               <th className="table-th">Event</th>
               <th className="table-th">Partner</th>
               <th className="table-th">Allocation</th>
+              <th className="table-th">Source</th>
               <th className="table-th table-th--money">Amount</th>
               <th className="table-th">Notes</th>
               <th className="table-th table-th--action"><span className="sr-only">Actions</span></th>
@@ -613,7 +537,7 @@ export function LedgerPage() {
           <tbody>
             {paginated.length === 0 ? (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   <div className="table-empty">
                     <span className="empty-state__icon"><BookOpen size={22} /></span>
                     <h3>No entries</h3>
@@ -629,8 +553,14 @@ export function LedgerPage() {
               paginated.map((event) => {
                 const partner = partners.find((p) => p.id === event.partnerId);
                 const alloc = allocationSummaries.find((a) => a.id === event.allocationId);
+                const isHighlighted = event.id === highlightedId;
+                const noteText = (event.notes || "").replace(/\s*WA_CONFIRMED\s*/g, "").trim();
                 return (
-                  <tr className="table-row" key={event.id}>
+                  <RecordRow
+                    className={isHighlighted ? "table-row table-row--highlighted" : "table-row"}
+                    key={event.id}
+                    ref={isHighlighted ? highlightedRowRef : undefined}
+                  >
                     <td className="table-cell table-cell--secondary" data-label="Date" style={{ whiteSpace: "nowrap" }}>
                       {formatLedgerDate(event)}
                     </td>
@@ -652,14 +582,36 @@ export function LedgerPage() {
                     <td className="table-cell table-cell--secondary" data-label="Allocation">
                       {alloc ? `${fmt(alloc.amountRupees)} @ ${alloc.profitPercent}% p.m.` : "—"}
                     </td>
+                    <td className="table-cell" data-label="Source">
+                      {alloc?.creditCard ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>
+                          <CreditCardIcon size={13} />
+                          {alloc.creditCard.cardName}
+                        </span>
+                      ) : alloc ? (
+                        <span style={{ color: "var(--muted)", fontSize: 12 }}>Cash</span>
+                      ) : "—"}
+                    </td>
                     <td className="table-cell table-cell--money" data-label="Amount">
-                      <strong style={{ color: EVENT_TONE[event.eventType] }}>
-                        {event.eventType === "CAPITAL_RECEIVED" ? "+" : "−"}{fmt(event.amountRupees)}
+                      <strong style={{ color: EVENT_TONE[event.eventType], whiteSpace: "nowrap" }}>
+                        {event.amountUnknown ? "" : event.eventType === "CAPITAL_RECEIVED" ? "+" : "−"}{event.amountUnknown ? "Amount not recorded" : fmt(event.amountRupees)}
                       </strong>
                     </td>
-                    <td className="table-cell table-cell--secondary" data-label="Notes">{(event.notes || "").replace(/\s*WA_CONFIRMED\s*/g, "").trim() || "—"}</td>
-                    <td className="table-cell table-cell--action">
-                      <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                    <td
+                      className="table-cell table-cell--secondary"
+                      data-label="Notes"
+                      style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: noteText ? "help" : undefined }}
+                      onMouseEnter={(e) => {
+                        if (!noteText) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setNotesTooltip({ text: noteText, top: rect.bottom + 6, left: rect.left });
+                      }}
+                      onMouseLeave={() => setNotesTooltip(null)}
+                    >
+                      {noteText || "—"}
+                    </td>
+                    <td className="table-cell table-cell--action table-cell--desktop-action">
+                      {isCFO && <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                         <button
                           className="icon-button"
                           type="button"
@@ -668,7 +620,7 @@ export function LedgerPage() {
                         >
                           <Pencil size={14} />
                         </button>
-                        <button
+                        {event.eventType !== "CASHBACK_PAID" && <button
                           className="icon-button"
                           type="button"
                           title="Delete entry"
@@ -676,11 +628,11 @@ export function LedgerPage() {
                           style={{ color: "var(--outgoing)" }}
                         >
                           <Trash2 size={14} />
-                        </button>
-                      </div>
+                        </button>}
+                      </div>}
                     </td>
                     {/* Mobile-only action row */}
-                    <td className="table-cell-actions">
+                    {isCFO && <td className="table-cell-actions">
                       <div className="table-cell-actions__inner">
                         <button
                           className="button button--secondary"
@@ -689,23 +641,48 @@ export function LedgerPage() {
                         >
                           <Pencil size={13} /> Edit
                         </button>
-                        <button
+                        {event.eventType !== "CASHBACK_PAID" && <button
                           className="button button--secondary"
                           type="button"
                           onClick={() => setConfirmDelete(event)}
                           style={{ color: "var(--outgoing)", borderColor: "var(--outgoing)" }}
                         >
                           <Trash2 size={13} /> Delete
-                        </button>
+                        </button>}
                       </div>
-                    </td>
-                  </tr>
+                    </td>}
+                  </RecordRow>
                 );
               })
             )}
           </tbody>
         </table>
       </div>
+
+      {notesTooltip && (
+        <div
+          role="tooltip"
+          style={{
+            position: "fixed",
+            top: notesTooltip.top,
+            left: notesTooltip.left,
+            zIndex: 300,
+            maxWidth: 280,
+            padding: "8px 10px",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--surface-raised)",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow-md)",
+            color: "var(--text)",
+            fontSize: 12,
+            lineHeight: 1.4,
+            whiteSpace: "normal",
+            pointerEvents: "none",
+          }}
+        >
+          {notesTooltip.text}
+        </div>
+      )}
 
       <Pagination
         page={page}

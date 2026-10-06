@@ -2,6 +2,8 @@ import { MotionConfig } from "framer-motion";
 import { lazy, Suspense } from "react";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 
+import { DataRefreshNotice } from "./components/DataRefreshNotice";
+import { ModalAccessibility } from "./components/ModalAccessibility";
 import { CommandPalette } from "./components/CommandPalette";
 import { ToastProvider } from "./components/Toast";
 import { RoleProvider } from "./context/RoleContext";
@@ -50,6 +52,11 @@ const ReportsPage = lazy(() =>
   import("./pages/ReportsPage").then((m) => ({ default: m.ReportsPage })),
 );
 
+const ActivityPage = lazy(() => import('./pages/ActivityPage').then(m => ({ default: m.ActivityPage })));
+const ImportPage = lazy(() => import('./pages/ImportPage').then(m => ({ default: m.ImportPage })));
+const DueCalendarPage = lazy(() => import('./pages/DueCalendarPage').then(m => ({ default: m.DueCalendarPage })));
+const LiabilityPlanningPage = lazy(() => import('./pages/LiabilityPlanningPage').then(m => ({ default: m.LiabilityPlanningPage })));
+
 // ─── Suspend fallback ─────────────────────────────────────────────────────────
 
 function RouteLoadingFallback() {
@@ -83,6 +90,10 @@ export function AppRoutes() {
           <Route path="/bulk-payment" element={<BulkPaymentPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/portal-links" element={<PortalLinksPage />} />
+          <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/import" element={<ImportPage />} />
+          <Route path="/due-calendar" element={<DueCalendarPage />} />
+          <Route path="/liability-planning" element={<LiabilityPlanningPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate replace to="/" />} />
         </Route>
@@ -100,6 +111,8 @@ export function App() {
         <ThemeProvider>
           <ToastProvider>
             <MotionConfig reducedMotion="user">
+              <DataRefreshNotice />
+              <ModalAccessibility />
               <AppRoutes />
               <CommandPalette />
             </MotionConfig>

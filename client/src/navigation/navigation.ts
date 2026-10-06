@@ -46,9 +46,9 @@ export const navigationItems: NavigationItem[] = [
   },
   {
     path: "/pending-profits",
-    label: "Pending Profits",
-    shortLabel: "Pending",
-    description: "All outstanding profit obligations",
+    label: "Profits",
+    shortLabel: "Profits",
+    description: "Profit obligations and payments, by month",
     icon: TrendingUp,
   },
   {
@@ -62,7 +62,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/ledger",
     label: "Ledger",
     shortLabel: "Ledger",
-    description: "Complete audit trail",
+    description: "Transactions and change history",
     icon: BookOpen,
   },
   {
@@ -79,6 +79,10 @@ export const navigationItems: NavigationItem[] = [
     description: "Financial summaries & trend charts",
     icon: BarChart2,
   },
+  { path: "/due-calendar", label: "Due Calendar", shortLabel: "Calendar", description: "Due dates and reminder history", icon: CalendarClock },
+  { path: "/liability-planning", label: "Liability Planning", shortLabel: "Planning", description: "7/30/90-day commitments and concentration", icon: BarChart2 },
+  { path: "/activity", label: "Change History", shortLabel: "History", description: "Previous values and recovery actions", icon: BookOpen, ceoVisible: false },
+  { path: "/import", label: "Getting Started & Import", shortLabel: "Import", description: "Guided setup and CSV import", icon: BadgeIndianRupee, ceoVisible: false },
   {
     path: "/portal-links",
     label: "Portal Links",

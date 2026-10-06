@@ -17,7 +17,7 @@ import {
   Square,
   TrendingUp,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { PageHeader } from "../components/PageHeader";
@@ -96,24 +96,19 @@ function SelectStep({
         </div>
       ) : (
         <>
+          <div className="bulk-selection-toolbar">
+            <button type="button" className="button button--secondary" onClick={onToggleAll}>
+              {allSelected ? <CheckSquare size={18} /> : <Square size={18} />}
+              {allSelected ? "Deselect all" : "Select all"}
+            </button>
+            <span role="status">{selectedCount} of {items.length} selected · {fmt(totalSelected)}</span>
+          </div>
           <div className="table-wrapper">
             <table className="data-table" aria-label="Select payments">
               <thead>
                 <tr>
                   <th className="table-th" style={{ width: 40 }}>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      style={{ width: 24, height: 24, minWidth: 24 }}
-                      onClick={onToggleAll}
-                      aria-label={allSelected ? "Deselect all" : "Select all"}
-                      title={allSelected ? "Deselect all" : "Select all"}
-                    >
-                      {allSelected
-                        ? <CheckSquare size={16} style={{ color: "var(--accent)" }} />
-                        : <Square size={16} style={{ color: "var(--muted)" }} />
-                      }
-                    </button>
+                    <span className="sr-only">Selection</span>
                   </th>
                   <th className="table-th">Partner</th>
                   <th className="table-th">Allocation</th>
@@ -132,9 +127,10 @@ function SelectStep({
                       <button
                         type="button"
                         className="icon-button"
-                        style={{ width: 24, height: 24, minWidth: 24 }}
+                        style={{ width: 44, height: 44, minWidth: 44 }}
                         onClick={() => onToggle(item.allocationId)}
-                        aria-label={item.selected ? "Deselect" : "Select"}
+                        aria-label={`${item.selected ? "Deselect" : "Select"} ${item.partnerName}, ${item.allocationLabel}`}
+                        aria-pressed={item.selected}
                       >
                         {item.selected
                           ? <CheckSquare size={16} style={{ color: "var(--accent)" }} />
@@ -142,13 +138,13 @@ function SelectStep({
                         }
                       </button>
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell" data-label="Partner">
                       <span className="entity-link">{item.partnerName}</span>
                     </td>
-                    <td className="table-cell" style={{ color: "var(--muted)", fontSize: 12 }}>
+                    <td className="table-cell" style={{ color: "var(--muted)", fontSize: 12 }} data-label="Allocation">
                       {item.allocationLabel}
                     </td>
-                    <td className="table-cell table-cell--money" style={{ color: "var(--outgoing)", fontWeight: 700 }}>
+                    <td className="table-cell table-cell--money" style={{ color: "var(--outgoing)", fontWeight: 700 }} data-label="Pending profit">
                       {fmt(item.pendingAmount)}
                     </td>
                   </tr>
@@ -167,7 +163,7 @@ function SelectStep({
             </table>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20, gap: 12 }}>
+          <div className="bulk-action-bar">
             <Link className="button button--secondary" to="/">Cancel</Link>
             <button
               className="button button--primary"
@@ -175,7 +171,7 @@ function SelectStep({
               onClick={onNext}
               disabled={selectedCount === 0}
             >
-              Review {selectedCount} payment{selectedCount !== 1 ? "s" : ""}
+              Review {selectedCount} payment{selectedCount !== 1 ? "s" : ""} · {fmt(totalSelected)}
               <ChevronRight size={15} />
             </button>
           </div>
@@ -301,7 +297,7 @@ function ReviewStep({
         <span style={{ color: "var(--muted)", fontSize: 13 }}>across {selected.length} partner{selected.length !== 1 ? "s" : ""}</span>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20, gap: 12 }}>
+      <div className="bulk-action-bar">
         <button className="button button--secondary" type="button" onClick={onBack}>← Back</button>
         <button
           className="button button--primary"
@@ -329,7 +325,7 @@ function DoneStep({ count, total }: { count: number; total: number }) {
       <p>
         Successfully recorded <strong>{count}</strong> profit payment{count !== 1 ? "s" : ""} totalling <strong>{fmt(total)}</strong>.
       </p>
-      <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+      <div className="bulk-completion-actions">
         <Link className="button button--secondary" to="/pending-profits">View pending profits</Link>
         <Link className="button button--primary" to="/">Back to dashboard</Link>
       </div>
@@ -340,7 +336,7 @@ function DoneStep({ count, total }: { count: number; total: number }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function BulkPaymentPage() {
-  const { allocationSummaries } = useStore();
+  const { allocationSummaries, hasData, status, isStale } = useStore();
   const { isCFO } = useRole();
   const [step, setStep] = useState<Step>("select");
   const [doneCount, setDoneCount] = useState(0);
@@ -350,7 +346,7 @@ export function BulkPaymentPage() {
   // Build initial payment items from pending allocations
   const initialItems = useMemo<PaymentItem[]>(() =>
     allocationSummaries
-      .filter((a) => !a.isFullyReturned && a.profitPending > 0)
+      .filter((a) => a.profitPending > 0)
       .map((a) => ({
         allocationId: a.id,
         partnerId: a.partnerId,
@@ -366,12 +362,35 @@ export function BulkPaymentPage() {
       .sort((a, b) => b.pendingAmount - a.pendingAmount),
   [allocationSummaries, today]);
 
-  const [items, setItems] = useState<PaymentItem[]>(() => initialItems);
+  const [items, setItems] = useState<PaymentItem[]>([]);
+  const initialized = useRef(false);
+  const previousSnapshot = useRef('');
+  const [selectionNotice, setSelectionNotice] = useState('');
+  const snapshot = JSON.stringify(initialItems);
+  const dataReady = hasData && status === 'ready' && !isStale;
+  useEffect(() => {
+    if (!dataReady || step === 'posting' || step === 'done' || previousSnapshot.current === snapshot) return;
+    const firstLoad = !initialized.current;
+    initialized.current = true;
+    previousSnapshot.current = snapshot;
+    setItems(previous => initialItems.map(fresh => {
+      const existing = previous.find(item => item.allocationId === fresh.allocationId);
+      if (!existing) return { ...fresh, selected: firstLoad };
+      const changed = existing.pendingAmount !== fresh.pendingAmount || existing.partnerId !== fresh.partnerId || existing.allocationLabel !== fresh.allocationLabel;
+      return { ...existing, ...fresh, editedAmount: existing.editedAmount, date: existing.date, notes: existing.notes,
+        referenceNumber: existing.referenceNumber, selected: changed ? false : existing.selected };
+    }));
+    if (!firstLoad) {
+      setSelectionNotice('Records changed. New or changed obligations are unselected; unavailable obligations were removed. Review your selection again.');
+      if (step === 'review') setStep('select');
+    }
+  }, [snapshot, dataReady, step]);
+
 
   // Sync items if store changes while on select step
   const pendingItems = useMemo(() =>
     allocationSummaries
-      .filter((a) => !a.isFullyReturned && a.profitPending > 0),
+      .filter((a) => a.profitPending > 0),
   [allocationSummaries]);
 
   function toggle(id: string) {
@@ -388,6 +407,11 @@ export function BulkPaymentPage() {
   }
 
   async function handlePost() {
+    if (!dataReady || previousSnapshot.current !== snapshot) {
+      setSelectionNotice('Refresh records and review the latest selection before recording.');
+      setStep('select');
+      return;
+    }
     const selected = items.filter((i) => i.selected);
     setStep("posting");
     let count = 0;
@@ -422,7 +446,7 @@ export function BulkPaymentPage() {
       <PageHeader
         eyebrow="Payment cycle"
         title="Bulk Payment"
-        description="Pay all pending profit obligations in one go."
+        description="Record profit payments after reviewing the latest obligations."
       />
 
       {/* Progress stepper */}
@@ -456,15 +480,17 @@ export function BulkPaymentPage() {
         </div>
       )}
 
+      {selectionNotice && <p role="status" className="attention-banner">{selectionNotice}</p>}
+      {!dataReady && step !== 'posting' && step !== 'done' && <p role="status">Load or refresh records successfully before selecting or recording payments.</p>}
       {/* Attention banner if no pending */}
-      {isCFO && pendingItems.length === 0 && step === "select" && (
+      {isCFO && dataReady && pendingItems.length === 0 && step === "select" && (
         <div className="attention-banner" style={{ marginBottom: 24 }}>
           <AlertTriangle size={16} />
           <span>No pending profit obligations found. All payments are up to date.</span>
         </div>
       )}
 
-      {isCFO && step === "select" && (
+      {isCFO && dataReady && step === "select" && (
         <SelectStep
           items={items}
           onToggle={toggle}
@@ -472,7 +498,7 @@ export function BulkPaymentPage() {
           onNext={() => setStep("review")}
         />
       )}
-      {step === "review" && (
+      {dataReady && step === "review" && (
         <ReviewStep
           items={items}
           onChange={handleChange}

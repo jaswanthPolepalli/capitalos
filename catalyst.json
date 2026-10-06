@@ -1,11 +1,16 @@
 {
-	"client": {
-		"source": "client/dist"
-	},
-	"functions": {
-		"source": "functions",
-		"targets": [
-			"capitalos-api"
-		]
-	}
+  "client": {
+    "source": "client/dist"
+  },
+  "functions": {
+    "source": "functions",
+    "targets": [
+      "capitalos-api",
+      "capitalos-month-end",
+      "capitalos-daily-summary"
+    ],
+    "scripts": {
+      "predeploy": "npm run month-end:prepare && npm run daily-summary:prepare"
+    }
+  }
 }

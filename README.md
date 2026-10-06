@@ -33,20 +33,15 @@ npm run test:watch
 npm run validate
 ```
 
-### Current Test Coverage
+### Current release work
 
-| File | Tests | Guards |
-|---|---|---|
-| `tests/financial-calculations.test.ts` | 81 | BigInt financial math |
-| `tests/validation.test.ts` | 120 | All Zod entity schemas |
-| `tests/schema-contract.test.ts` | 45 | Datastore schema structure & security |
-| `tests/format-utils.test.ts` | 37 | INR & date formatting |
-| `tests/soft-delete.test.ts` | 32 | Soft-delete data safety |
-| `tests/status-badge.test.ts` | 37 | UI status → CSS class mapping |
-| `tests/navigation.test.ts` | 36 | Route matching & mobile nav |
-| `tests/common-validation.test.ts` | 99 | Primitive schema edge cases |
-| `tests/calculation-integration.test.ts` | 27 | validate → calculate → format pipeline |
-| **Total** | **514** | |
+Daily PDF summaries are deployed and active in Development: a private 11 PM IST job and a CFO Reports action send the complete card/cashback position to the approved recipient. See [daily summary behavior](docs/daily-summary-email.md) and [release/rollback evidence](docs/deployment-daily-summary-2026-10-06.md). Install the new worker with `npm ci --prefix functions/capitalos-daily-summary` before running validation. Other environments still require the deployment backup/rollback gates before activation.
+
+The approved September improvements add complete datastore retrieval, recovery and change history, mobile statements, period balances, CSV onboarding/import, due reminders and liability planning. See [implementation and remaining decisions](docs/approved-improvements-2026-09-18.md).
+
+Use Node 24 (`nvm install && nvm use`) and run `npm ci` plus `npm ci --prefix functions/capitalos-api`. CI uses the same runtime and lockfiles. Run `npm run validate` before release. The new backend requires three additive datastore tables; follow [DEPLOYMENT.md](DEPLOYMENT.md) before deploying.
+
+The suite covers financial helpers, UI interactions, actual API handlers with isolated datastore fixtures, recovery and import failure cases. It does not replace hosted integration or physical-device acceptance checks.
 
 ---
 
@@ -54,7 +49,7 @@ npm run validate
 
 ### Prerequisites
 
-- Node.js ≥ 20
+- Node.js 24 (see `.nvmrc`); npm 11.17.0
 - Zoho Catalyst CLI installed and logged in:
   ```bash
   npm install -g @zohocorp/catalyst-cli

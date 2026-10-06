@@ -1,0 +1,13 @@
+{
+  "name": "capitalos-month-end",
+  "version": "1.0.0",
+  "description": "Private scheduled monthly partner statement emails",
+  "main": "index.js",
+  "dependencies": {
+    "nodemailer": "^9.1.1",
+    "zcatalyst-sdk-node": "3.4.0"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
+}

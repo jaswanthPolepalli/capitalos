@@ -1,9 +1,13 @@
+import { CardTransactionsModal } from '../components/CardTransactionsModal';
+import { EarningsSummary } from '../components/EarningsSummary';
+import { RecordRow } from "../components/RecordRow";
 import {
   CalendarClock,
   CreditCard as CreditCardIcon,
   Edit2,
   IndianRupee,
   PlusCircle,
+  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -314,21 +318,52 @@ function getCardUtilisation(cardId: string, allocationSummaries: ReturnType<type
 }
 
 export function CreditCardsPage() {
-  const { partners, creditCards, allocationSummaries, addCreditCard, updateCreditCard, deleteCreditCard } = useStore();
+  const { partners, creditCards, allocationSummaries, allocations = [], ledger = [], addCreditCard, updateCreditCard, deleteCreditCard } = useStore();
   const { isCFO } = useRole();
+  const [transactionCard, setTransactionCard] = useState<CreditCard | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editCard, setEditCard] = useState<CreditCard | null>(null);
   const [deleteCard, setDeleteCard] = useState<CreditCard | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterPartnerId, setFilterPartnerId] = useState("ALL");
+  const [filterUtilisation, setFilterUtilisation] = useState("ALL");
 
   const today = new Date().toISOString().slice(0, 10);
+  const hasFilters = Boolean(searchQuery.trim()) || filterPartnerId !== "ALL" || filterUtilisation !== "ALL";
+  function clearFilters() {
+    setSearchQuery("");
+    setFilterPartnerId("ALL");
+    setFilterUtilisation("ALL");
+  }
+
+  const utilisationByCard = new Map(creditCards.map(card => {
+    const fromAllocations = getCardUtilisation(card.id, allocationSummaries);
+    return [card.id, fromAllocations > 0 ? fromAllocations : card.pendingLimit];
+  }));
+  const query = searchQuery.trim().toLowerCase();
+  const filteredCards = creditCards.filter(card => {
+    const partner = partners.find(p => p.id === card.partnerId);
+    if (filterPartnerId === "UNASSIGNED" ? Boolean(partner) : filterPartnerId !== "ALL" && card.partnerId !== filterPartnerId) return false;
+    if (query && ![card.cardName, partner?.name ?? "Unknown Partner", card.notes || ""].some(value => value.toLowerCase().includes(query))) return false;
+    const utilised = utilisationByCard.get(card.id) ?? 0;
+    if (filterUtilisation === "USED" && utilised <= 0) return false;
+    if (filterUtilisation === "UNUSED" && utilised > 0) return false;
+    if (filterUtilisation === "HIGH" && (card.cardLimit <= 0 || utilised / card.cardLimit < 0.8)) return false;
+    if (filterUtilisation === "AVAILABLE" && card.cardLimit <= utilised) return false;
+    return true;
+  });
+  const totalLimit = filteredCards.reduce((sum, card) => sum + card.cardLimit, 0);
+  const totalUtilised = filteredCards.reduce((sum, card) => sum + (utilisationByCard.get(card.id) ?? 0), 0);
+  const totalAvailable = Math.max(0, totalLimit - totalUtilised);
+  const utilPct = totalLimit > 0 ? Math.round((totalUtilised / totalLimit) * 100) : 0;
 
   // Group cards by partner
   const cardsByPartner = partners.map((p) => ({
     partner: p,
-    cards: creditCards.filter((c) => c.partnerId === p.id),
+    cards: filteredCards.filter((c) => c.partnerId === p.id),
   })).filter((g) => g.cards.length > 0);
 
-  const unassignedCards = creditCards.filter(
+  const unassignedCards = filteredCards.filter(
     (c) => !partners.find((p) => p.id === c.partnerId)
   );
 
@@ -360,6 +395,16 @@ export function CreditCardsPage() {
           ) : undefined
         }
       />
+      <EarningsSummary allocations={allocationSummaries.filter(a => filteredCards.some(c => c.id === a.creditCardId))} regularProfit={allocationSummaries.filter(a => filteredCards.some(c => c.id === a.creditCardId)).reduce((sum, a) => sum + a.totalProfitPaid, 0)} />
+
+      {transactionCard && <CardTransactionsModal
+        key={transactionCard.id}
+        card={transactionCard}
+        partnerName={partners.find(p => p.id === transactionCard.partnerId)?.name ?? 'Unknown Partner'}
+        allocations={allocations}
+        ledger={ledger}
+        onClose={() => setTransactionCard(null)}
+      />}
 
       {showAddModal && (
         <CreditCardModal
@@ -397,38 +442,62 @@ export function CreditCardsPage() {
         </div>
       )}
 
-      {/* Aggregate summary strip */}
+      {creditCards.length > 0 && (
+        <div className="list-page__toolbar">
+          <div className="filter-bar">
+            <div className="filter-bar__controls" style={{ flexWrap: "wrap" }}>
+              <div className="search-input">
+                <Search size={15} className="search-input__icon" />
+                <input className="search-input__field" type="search" aria-label="Search credit cards"
+                  placeholder="Search card, partner, notes…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                {searchQuery && <button className="search-input__clear" type="button" aria-label="Clear search" onClick={() => setSearchQuery("")}><X size={14} /></button>}
+              </div>
+              <select className="select-filter__control" aria-label="Filter by partner" value={filterPartnerId} onChange={e => setFilterPartnerId(e.target.value)}>
+                <option value="ALL">All partners</option>
+                {partners.map(partner => <option key={partner.id} value={partner.id}>{partner.name}</option>)}
+                {creditCards.some(card => !partners.some(partner => partner.id === card.partnerId)) && <option value="UNASSIGNED">Unknown partner</option>}
+              </select>
+              <select className="select-filter__control" aria-label="Filter by utilisation" value={filterUtilisation} onChange={e => setFilterUtilisation(e.target.value)}>
+                <option value="ALL">All utilisation</option>
+                <option value="USED">In use</option>
+                <option value="UNUSED">Unused</option>
+                <option value="HIGH">80% or more used</option>
+                <option value="AVAILABLE">Available balance</option>
+              </select>
+              {hasFilters && <button className="button button--secondary" type="button" onClick={clearFilters}>Clear filters</button>}
+            </div>
+            <div className="filter-bar__trailing"><span className="record-count" role="status">{filteredCards.length} of {creditCards.length} cards</span></div>
+          </div>
+        </div>
+      )}
+
+      {creditCards.length > 0 && filteredCards.length === 0 && (
+        <div className="table-empty">
+          <span className="empty-state__icon"><Search size={22} /></span>
+          <h3>No matching cards</h3>
+          <p>Try another search or clear the filters to see all credit cards.</p>
+        </div>
+      )}
+
+      {/* Aggregate summary strip — totals follow the visible cards. */}
       {creditCards.length > 0 && (
         <div className="card-summary-strip">
-          {(() => {
-            const totalLimit = creditCards.reduce((s, c) => s + c.cardLimit, 0);
-            const totalUtilised = creditCards.reduce((c_acc, card) => {
-              const fromAllocs = getCardUtilisation(card.id, allocationSummaries);
-              return c_acc + (fromAllocs > 0 ? fromAllocs : card.pendingLimit);
-            }, 0);
-            const totalAvailable = Math.max(0, totalLimit - totalUtilised);
-            const utilPct = totalLimit > 0 ? Math.round((totalUtilised / totalLimit) * 100) : 0;
-            return (
-              <>
-                <div className="card-summary-strip__item">
-                  <span>Total card capacity</span>
-                  <strong>{fmt(totalLimit)}</strong>
-                </div>
-                <div className="card-summary-strip__divider" />
-                <div className="card-summary-strip__item">
-                  <span>Total utilised</span>
-                  <strong style={{ color: utilPct > 85 ? "var(--outgoing)" : utilPct > 60 ? "var(--pending)" : "var(--incoming)" }}>
-                    {fmt(totalUtilised)} ({utilPct}%)
-                  </strong>
-                </div>
-                <div className="card-summary-strip__divider" />
-                <div className="card-summary-strip__item">
-                  <span>Total available</span>
-                  <strong style={{ color: "var(--incoming)" }}>{fmt(totalAvailable)}</strong>
-                </div>
-              </>
-            );
-          })()}
+          <div className="card-summary-strip__item">
+            <span>Total card capacity</span>
+            <strong>{fmt(totalLimit)}</strong>
+          </div>
+          <div className="card-summary-strip__divider" />
+          <div className="card-summary-strip__item">
+            <span>Total utilised</span>
+            <strong style={{ color: utilPct > 85 ? "var(--outgoing)" : utilPct > 60 ? "var(--pending)" : "var(--incoming)" }}>
+              {fmt(totalUtilised)} ({utilPct}%)
+            </strong>
+          </div>
+          <div className="card-summary-strip__divider" />
+          <div className="card-summary-strip__item">
+            <span>Total available</span>
+            <strong style={{ color: "var(--incoming)" }}>{fmt(totalAvailable)}</strong>
+          </div>
         </div>
       )}
 
@@ -448,7 +517,7 @@ export function CreditCardsPage() {
                   <th className="table-th table-th--money">Total limit</th>
                   <th className="table-th table-th--money">Utilised</th>
                   <th className="table-th table-th--money">Available</th>
-                  <th className="table-th">Bill generation date</th>
+                  <th className="table-th table-th--money">Cashback paid</th><th className="table-th table-th--money">Total profits received</th><th className="table-th">Bill generation date</th>
                   <th className="table-th">Due date</th>
                   <th className="table-th">Next due (from today)</th>
                   <th className="table-th">Notes</th>
@@ -457,6 +526,10 @@ export function CreditCardsPage() {
               </thead>
               <tbody>
                 {cards.map((card) => {
+                  const cardAllocations = allocationSummaries.filter(a => a.creditCardId === card.id);
+                  const cashbackPaid = cardAllocations.reduce((sum, a) => sum + a.totalCashbackPaid, 0);
+                  const totalReceived = cardAllocations.reduce((sum, a) => sum + a.totalProfitsReceived, 0);
+                  const unrecorded = cardAllocations.some(a => a.unknownCashbackCount > 0);
                   const nextDue = computeNextDueDate(card, today);
                   // Utilised = outstanding capital from active allocations linked to this card
                   const utilisedFromAllocations = getCardUtilisation(card.id, allocationSummaries);
@@ -466,12 +539,13 @@ export function CreditCardsPage() {
                   const availableAmt = Math.max(0, card.cardLimit - utilisedAmt);
                   const utilisedPct = card.cardLimit > 0 ? Math.round((utilisedAmt / card.cardLimit) * 100) : 0;
                   return (
-                    <tr className="table-row" key={card.id}>
+                    <RecordRow className="table-row card-transactions-row" key={card.id}
+                      onClick={event => { if (!(event.target as HTMLElement).closest('button, a, input, select, textarea')) setTransactionCard(card); }}>
                       <td className="table-cell">
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600 }}>
+                        <button type="button" className="card-transactions-trigger" aria-label={`View transactions for ${card.cardName}`} onClick={() => setTransactionCard(card)}>
                           <CreditCardIcon size={14} style={{ color: "var(--accent)" }} />
                           {card.cardName}
-                        </span>
+                        </button>
                       </td>
                       <td className="table-cell table-cell--money" data-label="Limit">
                         <strong>{fmt(card.cardLimit)}</strong>
@@ -496,6 +570,7 @@ export function CreditCardsPage() {
                           {fmt(availableAmt)}
                         </strong>
                       </td>
+                      <td className="table-cell table-cell--money" data-label="Cashback paid">{fmt(cashbackPaid)}{unrecorded && <small> + unrecorded amounts</small>}</td><td className="table-cell table-cell--money" data-label="Total profits received">{fmt(totalReceived)}{unrecorded && <small> (known amounts)</small>}</td>
                       <td className="table-cell table-cell--secondary" data-label="Bill gen">
                         {formatDate(card.billGenerationDate)}
                       </td>
@@ -507,16 +582,16 @@ export function CreditCardsPage() {
                         {formatDate(nextDue)}
                       </td>
                       <td className="table-cell table-cell--secondary" data-label="Notes">{card.notes || "—"}</td>
-                      <td className="table-cell table-cell--action">
+                      <td className="table-cell table-cell--action table-cell--desktop-action">
                         {isCFO && (
                           <div style={{ display: "flex", gap: 4 }}>
                             <button className="icon-button" type="button" title="Edit card" onClick={() => setEditCard(card)}>
                               <Edit2 size={14} />
                             </button>
-                            <button className="icon-button" type="button" title="Delete card" onClick={() => setDeleteCard(card)}
+                            <button className="icon-button" type="button" title="Delete card" aria-label="Delete card" onClick={() => setDeleteCard(card)}
                               style={{ color: "var(--outgoing)" }}>
                               <Trash2 size={14} />
-                            </button>
+                            <span className="mobile-action-label">Delete card</span></button>
                           </div>
                         )}
                       </td>
@@ -533,7 +608,7 @@ export function CreditCardsPage() {
                           </div>
                         </td>
                       )}
-                    </tr>
+                    </RecordRow>
                   );
                 })}
               </tbody>
@@ -560,17 +635,18 @@ export function CreditCardsPage() {
               </thead>
               <tbody>
                 {unassignedCards.map((card) => (
-                  <tr className="table-row" key={card.id}>
-                    <td className="table-cell">{card.cardName}</td>
-                    <td className="table-cell table-cell--money">{fmt(card.cardLimit)}</td>
-                    <td className="table-cell">{formatDate(card.billGenerationDate)}</td>
-                    <td className="table-cell">{formatDate(card.dueDate)}</td>
+                  <RecordRow className="table-row card-transactions-row" key={card.id}
+                      onClick={event => { if (!(event.target as HTMLElement).closest('button, a, input, select, textarea')) setTransactionCard(card); }}>
+                    <td className="table-cell" data-label="Card name"><button type="button" className="card-transactions-trigger" aria-label={`View transactions for ${card.cardName}`} onClick={() => setTransactionCard(card)}>{card.cardName}</button></td>
+                    <td className="table-cell table-cell--money" data-label="Card limit">{fmt(card.cardLimit)}</td>
+                    <td className="table-cell" data-label="Bill generation date">{formatDate(card.billGenerationDate)}</td>
+                    <td className="table-cell" data-label="Due date">{formatDate(card.dueDate)}</td>
                     <td className="table-cell table-cell--action">
-                      <button className="icon-button" type="button" onClick={() => setDeleteCard(card)} style={{ color: "var(--outgoing)" }}>
+                      <button className="icon-button" type="button" aria-label="Delete unassigned card" title="Delete card" onClick={() => setDeleteCard(card)} style={{ color: "var(--outgoing)" }}>
                         <Trash2 size={14} />
-                      </button>
+                      <span className="mobile-action-label">Delete card</span></button>
                     </td>
-                  </tr>
+                  </RecordRow>
                 ))}
               </tbody>
             </table>
@@ -579,18 +655,11 @@ export function CreditCardsPage() {
       )}
 
       {/* Summary strip */}
-      {creditCards.length > 0 && (() => {
-        const totalLimit = creditCards.reduce((s, c) => s + c.cardLimit, 0);
-        const totalUtilised = creditCards.reduce((s, c) => {
-          const fromAlloc = getCardUtilisation(c.id, allocationSummaries);
-          return s + (fromAlloc > 0 ? fromAlloc : c.pendingLimit);
-        }, 0);
-        const totalAvailable = Math.max(0, totalLimit - totalUtilised);
-        return (
+      {creditCards.length > 0 && (
           <div className="ledger-summary" style={{ marginTop: 16 }}>
             <div className="ledger-summary__item">
               <span>Total cards</span>
-              <strong style={{ fontSize: 17 }}>{creditCards.length}</strong>
+              <strong style={{ fontSize: 17 }}>{filteredCards.length}</strong>
             </div>
             <div className="ledger-summary__divider" />
             <div className="ledger-summary__item">
@@ -613,8 +682,7 @@ export function CreditCardsPage() {
               <strong style={{ fontSize: 17 }}>{cardsByPartner.length}</strong>
             </div>
           </div>
-        );
-      })()}
+      )}
 
       {/* Info box */}
       <div className="foundation-banner" style={{ marginTop: 24 }}>

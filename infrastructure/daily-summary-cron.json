@@ -1,0 +1,15 @@
+{
+  "cron_name": "capitalos_daily_summary",
+  "description": "Complete card and cashback PDF at 11 PM IST on days with financial activity.",
+  "cron_status": false,
+  "cron_type": "CronExpression",
+  "cron_expression": "0 23 * * *",
+  "cron_detail": { "timezone": "Asia/Kolkata" },
+  "job_meta": {
+    "job_name": "daily_summary",
+    "target_type": "Function",
+    "target_name": "capitalos-daily-summary",
+    "jobpool_name": "capitalos_statements",
+    "job_config": { "number_of_retries": 2, "retry_interval": 300 }
+  }
+}

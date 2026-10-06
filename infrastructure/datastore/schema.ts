@@ -358,6 +358,49 @@ const COS_CreditCards: TableDefinition = {
   ],
 };
 
+// Additive tables used by the active COS API. IDs are varchar references to COS_*
+// records, not foreign keys to the older Stage 1 tables.
+export const OPERATIONS_TABLES: readonly TableDefinition[] = [
+  {
+    name: "COS_Activity",
+    columns: [
+      varchar("event_id", 80, { required: true, unique: true }),
+      varchar("operation_id", 80, { required: true, searchIndex: true }),
+      varchar("entity_type", 50, { required: true, searchIndex: true }),
+      varchar("entity_id", 50, { searchIndex: true }),
+      varchar("action", 40, { required: true }),
+      varchar("status", 40, { required: true }),
+      varchar("actor", 255, { required: true, pii: true }),
+      varchar("occurred_at", 50, { required: true, searchIndex: true }),
+      text("before_state", { pii: true }), text("after_state", { pii: true }), text("reason"),
+    ],
+    applicationConstraints: ["Append-only intents and outcomes; no application update/delete route", "Actor is explicitly unverified until server authentication is implemented"],
+  },
+  {
+    name: "COS_Reminders",
+    columns: [
+      varchar("event_id", 80, { required: true, unique: true }),
+      varchar("obligation_id", 255, { required: true, searchIndex: true }),
+      varchar("partner_id", 50, { required: true, searchIndex: true }),
+      varchar("allocation_id", 50, { required: true, searchIndex: true }),
+      varchar("kind", 40, { required: true }), varchar("action", 40, { required: true }),
+      varchar("channel", 40, { required: true }), bigint("amount_paise", { required: true }),
+      date("due_date", { required: true }), date("follow_up_date"), text("notes", { pii: true }),
+      varchar("occurred_at", 50, { required: true, searchIndex: true }),
+    ],
+    applicationConstraints: ["Append-only manual reminder events; sent means confirmed by the operator, not provider delivery", "Profit estimates are not booked liabilities"],
+  },
+  {
+    name: "COS_Imports",
+    columns: [
+      varchar("import_key", 80, { required: true, unique: true }),
+      varchar("entity_type", 50, { required: true }), varchar("entity_id", 50),
+      varchar("status", 40, { required: true }), varchar("occurred_at", 50, { required: true }),
+    ],
+    applicationConstraints: ["Unique row fingerprints prevent repeating an import", "Unconfirmed writes require record inspection before another import attempt"],
+  },
+];
+
 export const DATASTORE_SCHEMA = {
   version: "1.0.0",
   moneyStorage: "BIGINT_PAISE",
@@ -374,5 +417,6 @@ export const DATASTORE_SCHEMA = {
     AuditEvents,
     SchemaVersions,
     COS_CreditCards,
+    ...OPERATIONS_TABLES,
   ],
 } as const satisfies DatastoreSchema;

@@ -1,0 +1,14 @@
+{
+  "table_name": "COS_Allocations",
+  "columns": [
+    {
+      "column_name": "cashback_data",
+      "data_type": "text",
+      "max_length": 10000,
+      "is_mandatory": false,
+      "is_unique": false,
+      "search_index_enabled": false,
+      "audit_consent": true
+    }
+  ]
+}

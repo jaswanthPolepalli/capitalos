@@ -2,26 +2,17 @@
  * useStore — React hook that subscribes to the CapitalOS cloud store.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 
 import * as Store from "./store";
+import { useStoreStatus } from "./useStoreStatus";
 
 export function useStore() {
-  // Initialize tick from current loaded state so the hook immediately
-  // returns the latest data if another component already loaded it
-  const [tick, setTick] = useState(() => Store.isLoaded() ? 1 : 0);
-
-  useEffect(() => {
-    // Subscribe first so we catch the notify() from loadAll
-    const unsub = Store.subscribe(() => setTick((t) => t + 1));
-    // Always re-fetch on mount — the _loading guard prevents duplicate concurrent requests
-    // but allows sequential reloads on page refresh / navigation
-    Store.loadAll();
-    return () => { unsub(); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const { tick, ...loadState } = useStoreStatus();
 
   return {
     tick,
+    ...loadState,
     isLoaded: Store.isLoaded(),
     partners: Store.getPartners(),
     allocations: Store.getAllocations(),

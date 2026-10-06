@@ -1,0 +1,41 @@
+# Daily PDF summary
+
+Deployed and activated in Development on 6 October 2026 after verified backups, isolated restoration and rollback rehearsal. The first scheduled run is 6 October at 11:00 PM IST. See [release evidence and rollback](deployment-daily-summary-2026-10-06.md). Checked-in defaults remain disabled for safe setup in other environments.
+
+The approved recipient is `jackgun9@gmail.com`. The private `capitalos-daily-summary` job runs at **11:00 PM Asia/Kolkata**, using `0 23 * * *`. SMTP submission starts at that time; inbox arrival depends on the provider. Checked-in defaults keep the job and cron disabled until release verification is complete.
+
+## Report and manual sending
+
+The PDF uses the approved preview layout: daily transaction count and four movement totals, followed by Card section, then Cashback follow-up on a new page. No explanatory paragraphs, page footer, or cashback total row are added. Headers repeat when a table continues onto additional pages. All amounts use Indian rupee grouping; the card and cashback column headings identify INR.
+
+Card rows group by partner and card ID, with cumulative total equal to outstanding capital. Combined capital is counted once, while unpaid profit on original sources is preserved using the app's shared calculation. Due dates come only from outstanding contributions whose due-date checkbox is checked in the WhatsApp summary (WA_CONFIRMED), using the date saved there. Unconfirmed or missing dates display Bill not generated. Rows sort by earliest due date; undated rows follow in descending last-transaction order. Multiple outstanding due dates remain visible, including Bill not generated for unconfirmed or undated contributions in a mixed group. Fully settled cards remain in the complete position with zero outstanding balance. The pending-profit column displays Profit paid when the card has no remaining profit due; otherwise it displays the total pending profit for that card. Cash/bank activity appears in the movement totals, but not the card table.
+
+Cashback rows are individual original card contributions with status unpaid or review, including returned and combined source contributions. Paid and not applicable entries are excluded. The displayed transaction amount is original capital, not estimated cashback. Older rows with no structured status follow the existing Needs review behavior; their inclusion is for follow-up and does not assert unpaid entitlement. Unknown paid cashback amounts appear as a count alongside known cashback movement, rather than silently becoming zero.
+
+In the CFO workspace, **Reports → Send summary email** posts to `daily-summary/send` with a request UUID. The backend always loads the complete current position regardless of Reports filters and sends to the fixed recipient, including on days without transactions. Caller-provided addresses cannot change the recipient. CEO view hides the button, consistent with the existing client-side role model; this does not introduce server-side authentication to the existing API. Local mock mode returns an explicit no-email result.
+
+## Activity cutoff and duplicate handling
+
+Scheduled sending requires at least one visible ledger movement dated today, a visible movement recorded since yesterday's 11 PM cutoff, or a committed financial change in that interval. This includes capital additions/returns, profit and cashback payments, combinations, corrections and backdated entries. Audit timestamps also capture transactions entered after the previous night's cutoff, so they trigger the next night's report. Header totals remain today's business-date movements; the full position includes all current records through today's business date. Future-dated and soft-deleted/hidden rows are excluded. The report is a preparation-time snapshot, not a midnight closing statement.
+
+Every required table is fully paginated and validated before rendering or sending. A data/PDF failure aborts without reserving a send. The existing unique `COS_Activity.event_id` constraint provides an atomic send reservation. Scheduled sends have one key per IST date; manual sends use the request UUID and do not suppress the scheduled email. Retries reuse the key and do not resubmit an uncertain SMTP attempt. The outcome records recipient, cutoff, date and PDF SHA-256 under `daily-summary-email`. Financial tables are never written by reporting.
+
+If the response is lost, retry with the same request ID. If SMTP acceptance or the outcome audit is uncertain, inspect the inbox and Activity before creating a new manual request. SMTP acceptance is not proof of inbox delivery. An outage across multiple days is not silently backfilled; use an on-demand report after reviewing the failed job.
+
+## Release and rollback
+
+Before deployment, follow both mandatory gates in [DEPLOYMENT.md](../DEPLOYMENT.md#mandatory-backup-gate): fresh verified complete data backup and preservation/redeployment rehearsal of the currently hosted application with its runtime and configuration. Record exact environment-specific rollback commands and smoke checks before any deployment command. No new table or column is required. Do not interpret local tests or this document as evidence that those gates have passed.
+
+1. Install dependencies using Node 24: `npm ci`, `npm ci --prefix functions/capitalos-api`, `npm ci --prefix functions/capitalos-month-end`, and `npm ci --prefix functions/capitalos-daily-summary`.
+2. Run `npm run validate`. `daily-summary:prepare` copies shared reporting modules into the standalone job. The predeploy hook also prepares both workers.
+3. After the backup and rollback gates pass, deploy the API, frontend and new Node 24 Job Function, keeping `DAILY_SUMMARY_EMAILS_ENABLED=false` and the new cron disabled. Preserve the existing monthly worker's runtime settings and schedule.
+4. Securely configure the daily worker's `SMTP_USER` and `SMTP_APP_PASSWORD` from the existing approved sending account. Do not place credentials in Git, terminal output or release notes. The API's manual send uses its existing SMTP transport.
+5. Create the private predefined cron from `infrastructure/daily-summary-cron.json` in the intended environment, targeting `capitalos-daily-summary`. Reuse the existing `capitalos_statements` Function job pool if present. For REST provisioning use `job_detail` for timezone and `cron_execution_type=pre-defined`, as documented for the monthly worker.
+6. Verify deployed modules, Node 24 runtime, datastore SELECT access, and Activity SELECT/INSERT plus unique `event_id`. Execute a disabled worker smoke run and verify it does not initialize SMTP/datastore. Check the Reports control on desktop/mobile, and validate the generated attachment with the read-only snapshot renderer before a live email test.
+7. Enable `DAILY_SUMMARY_EMAILS_ENABLED=true` and the cron only in the one intended environment. Record the actual cron/function/pool IDs, timezone, next run and flags in release evidence. Observe the first scheduled run and email outcome.
+
+To stop scheduled sending, disable the new cron and set the daily worker flag to false. To roll back manual sending and the UI, redeploy the independently verified previous API/frontend artifacts using the release-specific commands recorded at the backup gate. Keep all Activity and financial records, including records written after the backup; do not restore old data over later transactions. Disabling the daily cron does not affect the monthly partner statement job.
+
+## Local verification
+
+Domain, API, job and UI tests cover timezone boundaries, conditional/manual sending, all transaction types, late/backdated entries, combined capital, partial profit, returned-capital cashback, soft deletion, pagination failures, PDF generation, duplicate/concurrent attempts, uncertain mail/audit results, fixed recipient and mock isolation. Tests replace SMTP and never send live emails.

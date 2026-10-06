@@ -9,10 +9,13 @@
  * Escape a cell value for safe CSV output.
  * Wraps in quotes and escapes internal quotes.
  */
-function escapeCell(value: string | number | null | undefined): string {
-  const s = value == null ? "" : String(value);
+export function escapeCell(value: string | number | null | undefined): string {
+  let s = value == null ? "" : String(value);
+  // Keep genuine numeric cells numeric. Untrusted text, including phone numbers,
+  // must never become a spreadsheet formula (quotes alone do not prevent that).
+  if (typeof value === 'string' && (/^[\s\u0000-\u001f]*[=+@-]/.test(s) || /^[\t\r\n]/.test(s))) s = "'" + s;
   // If the value contains a comma, newline, or double-quote, wrap in quotes
-  if (s.includes(",") || s.includes("\n") || s.includes('"')) {
+  if (s.includes(",") || s.includes("\n") || s.includes("\r") || s.includes('"')) {
     return `"${s.replace(/"/g, '""')}"`;
   }
   return s;

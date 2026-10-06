@@ -1,0 +1,9 @@
+{
+  "deployment": {
+    "name": "capitalos-daily-summary",
+    "stack": "node24",
+    "type": "job",
+    "env_variables": { "DAILY_SUMMARY_EMAILS_ENABLED": "false" }
+  },
+  "execution": { "main": "index.js" }
+}

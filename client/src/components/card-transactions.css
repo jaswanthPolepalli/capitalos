@@ -1,0 +1,23 @@
+.card-transactions-modal { width: min(100%, 850px); }
+.card-transactions-modal .modal__header, .card-transactions-modal .modal__footer { flex-shrink: 0; }
+.card-transactions-modal .modal__header > div { min-width: 0; overflow-wrap: anywhere; }
+.card-transactions-partner, .card-transactions-caption { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.card-transactions-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.card-transactions-filters .form-field { min-width: 0; }
+.card-transactions-count { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.card-transactions-count { color: var(--muted); font-size: 13px; }
+.card-transactions-table-scroll { overflow-x: auto; flex-shrink: 0; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.card-transactions-table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px; text-align: left; }
+.card-transactions-table th { padding: 10px 12px; color: var(--muted); font-size: 12px; font-weight: 600; border-bottom: 1px solid var(--border); }
+.card-transactions-table td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.card-transactions-table tbody tr:last-child td { border-bottom: 0; }
+.card-transactions-table .card-transaction-amount { text-align: right; font-variant-numeric: tabular-nums; }
+.card-transaction-date, .card-transaction-rate { white-space: nowrap; }
+.card-transaction-notes { min-width: 180px; max-width: 320px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.card-transactions-trigger { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.card-transactions-trigger:hover { text-decoration: underline; }
+.card-transactions-row { cursor: pointer; }
+@media (max-width: 480px) {
+  .card-transactions-filters { grid-template-columns: minmax(0, 1fr); }
+  .card-transactions-modal .modal__body { padding: 14px; }
+}

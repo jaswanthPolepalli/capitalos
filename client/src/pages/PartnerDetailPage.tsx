@@ -1,3 +1,9 @@
+import { EarningsSummary } from '../components/EarningsSummary';
+import { PaymentSelectionActions } from '../components/PaymentSelectionActions';
+import { RecordRow } from "../components/RecordRow";
+import { OptionalDateInput } from "../components/OptionalDateInput";
+import { EditEntryModal } from "../components/EditEntryModal";
+import type { LedgerEvent } from "../store";
 import {
   ArrowLeft,
   ArrowDownLeft,
@@ -333,7 +339,7 @@ function RecordCapitalReturnModal({ allocationId, partnerId, capitalOutstanding,
 // ─── Record Profit Modal ──────────────────────────────────────────────────────
 
 function RecordProfitModal({
-  allocationId, partnerId, pendingAmount, partnerName, partnerPhone, capitalOutstanding, profitPercent, onClose,
+  allocationId, partnerId, pendingAmount, partnerName, partnerPhone, capitalOutstanding, profitPercent, fundingSource, cardName, amountGivenDate, onClose,
 }: {
   allocationId: string;
   partnerId: string;
@@ -342,6 +348,9 @@ function RecordProfitModal({
   partnerPhone?: string | null;
   capitalOutstanding?: number;
   profitPercent?: number;
+  fundingSource?: "cash" | "card";
+  cardName?: string | null;
+  amountGivenDate?: string | null;
   onClose: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -396,6 +405,9 @@ function RecordProfitModal({
       paidDate: submittedDate,
       capitalOutstanding: capitalOutstanding ?? null,
       profitPercent: profitPercent ?? null,
+      fundingSource: fundingSource ?? null,
+      cardName: cardName ?? null,
+      amountGivenDate: amountGivenDate ?? null,
     });
     return (
       <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="rp-done-title">
@@ -582,10 +594,17 @@ function EditPartnerModal({ partner, onClose }: { partner: { id: string; name: s
 function EditReturnDateModal({ allocationId, currentReturnDate, onClose }: { allocationId: string; currentReturnDate: string | null; onClose: () => void }) {
   const [value, setValue] = useState(currentReturnDate ?? "");
 
-  function handleSubmit(ev: React.FormEvent) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
-    updateAllocationReturnDate(allocationId, value || null);
-    onClose();
+    setSaving(true);
+    try {
+      await updateAllocationReturnDate(allocationId, value || null);
+      onClose();
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to save return date."); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -595,11 +614,12 @@ function EditReturnDateModal({ allocationId, currentReturnDate, onClose }: { all
         <form className="modal__body" onSubmit={handleSubmit}>
           <div className="form-field">
             <label htmlFor="edit-ret-date" className="form-label">Return date <span className="form-label__optional">(leave blank to remove)</span></label>
-            <input id="edit-ret-date" className="form-input" type="date" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+            <OptionalDateInput id="edit-ret-date" className="form-input" value={value} onValueChange={setValue} disabled={saving} autoFocus />
           </div>
+          {error && <p className="form-error" role="alert">{error}</p>}
           <div className="modal__footer">
             <button className="button button--secondary" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button--primary" type="submit"><CalendarClock size={16} /> Save</button>
+            <button className="button button--primary" type="submit" disabled={saving}><CalendarClock size={16} /> Save</button>
           </div>
         </form>
       </div>
@@ -619,11 +639,16 @@ type ModalState =
 
 export function PartnerDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { allocationSummaries, profitRecords, capitalReturns, getPartner, deletePartner, getCreditCardsForPartner } = useStore();
+  const { ledger, allocationSummaries, profitRecords, capitalReturns, getPartner, deletePartner, getCreditCardsForPartner } = useStore();
   const { isCFO } = useRole();
   const navigate = useNavigate();
 
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ type: "none" });
+  const [editEvent, setEditEvent] = useState<LedgerEvent | null>(null);
+  function editRecord(refId: string, eventType: LedgerEvent["eventType"]) {
+    setEditEvent(ledger.find(e => e.refId === refId && e.eventType === eventType) ?? null);
+  }
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -648,7 +673,7 @@ export function PartnerDetailPage() {
   const partnerPayments = profitRecords.filter((r) => r.partnerId === id).sort((a, b) => b.paidDate.localeCompare(a.paidDate));
   const partnerReturns = capitalReturns.filter((r) => r.partnerId === id).sort((a, b) => b.returnedDate.localeCompare(a.returnedDate));
 
-  const totalCapital = partnerAllocations.reduce((s, a) => s + a.amountRupees, 0);
+  const totalCapital = partnerAllocations.reduce((s, a) => s + a.contributedAmount, 0);
   const totalCapitalReturned = partnerAllocations.reduce((s, a) => s + a.totalCapitalReturned, 0);
   const capitalOutstanding = partnerAllocations.reduce((s, a) => s + a.capitalOutstanding, 0);
   const cashOutstanding = partnerAllocations.filter((a) => !a.creditCardId).reduce((s, a) => s + a.capitalOutstanding, 0);
@@ -685,7 +710,7 @@ export function PartnerDetailPage() {
               <button className="button button--secondary" type="button" onClick={() => setModal({ type: "editPartner" })}>
                 <Edit2 size={15} /> Edit
               </button>
-              <button className="button button--secondary" type="button" onClick={() => setModal({ type: "capitalReturn", allocationId: partnerAllocations.find((a) => !a.isFullyReturned)?.id ?? "", capitalOutstanding: capitalOutstanding })} disabled={capitalOutstanding === 0}>
+              <button className="button button--secondary" type="button" onClick={() => setModal({ type: "capitalReturn", allocationId: partnerAllocations.find((a) => !a.isFullyReturned && !a.combinationReserved)?.id ?? "", capitalOutstanding: partnerAllocations.find((a) => !a.isFullyReturned && !a.combinationReserved)?.capitalOutstanding ?? 0 })} disabled={capitalOutstanding === 0}>
                 <ArrowDownLeft size={15} /> Record Return
               </button>
               <button className="button button--primary" type="button" onClick={() => setModal({ type: "addContrib" })}>
@@ -721,25 +746,30 @@ export function PartnerDetailPage() {
       )}
 
       {/* Modals */}
+      {isCFO && editEvent && <EditEntryModal event={editEvent} allocationSummaries={allocationSummaries} onClose={() => setEditEvent(null)} />}
       {modal.type === "editPartner" && <EditPartnerModal partner={partner} onClose={() => setModal({ type: "none" })} />}
       {modal.type === "addContrib" && <AddContributionModal partnerId={partner.id} partnerCards={partnerCards} onClose={() => setModal({ type: "none" })} />}
       {modal.type === "capitalReturn" && (
         <RecordCapitalReturnModal allocationId={modal.allocationId} partnerId={partner.id} capitalOutstanding={modal.capitalOutstanding} onClose={() => setModal({ type: "none" })} />
       )}
-      {modal.type === "profitPay" && (
-        <RecordProfitModal
-          allocationId={modal.allocationId}
-          partnerId={partner.id}
-          pendingAmount={modal.profitPending}
-          partnerName={partner.name}
-          partnerPhone={partner.phone ?? null}
-          capitalOutstanding={partnerAllocations.find((a) => a.id === modal.allocationId)?.capitalOutstanding ?? capitalOutstanding}
-          {...(partnerAllocations.find((a) => a.id === modal.allocationId)?.profitPercent !== undefined
-            ? { profitPercent: partnerAllocations.find((a) => a.id === modal.allocationId)!.profitPercent }
-            : {})}
-          onClose={() => setModal({ type: "none" })}
-        />
-      )}
+      {modal.type === "profitPay" && (() => {
+        const payingAlloc = partnerAllocations.find((a) => a.id === modal.allocationId);
+        return (
+          <RecordProfitModal
+            allocationId={modal.allocationId}
+            partnerId={partner.id}
+            pendingAmount={modal.profitPending}
+            partnerName={partner.name}
+            partnerPhone={partner.phone ?? null}
+            capitalOutstanding={payingAlloc?.capitalOutstanding ?? capitalOutstanding}
+            {...(payingAlloc?.profitPercent !== undefined ? { profitPercent: payingAlloc.profitPercent } : {})}
+            fundingSource={payingAlloc?.creditCardId ? "card" : "cash"}
+            cardName={payingAlloc?.creditCard?.cardName ?? null}
+            amountGivenDate={payingAlloc?.receivedDate ?? null}
+            onClose={() => setModal({ type: "none" })}
+          />
+        );
+      })()}
       {modal.type === "editReturn" && (
         <EditReturnDateModal allocationId={modal.allocationId} currentReturnDate={modal.currentReturnDate} onClose={() => setModal({ type: "none" })} />
       )}
@@ -792,9 +822,14 @@ export function PartnerDetailPage() {
         </div>
       </div>
 
+      <EarningsSummary allocations={partnerAllocations} regularProfit={totalProfitPaid} />
       {/* Allocations table */}
       <section aria-labelledby="alloc-title" style={{ marginBottom: 24 }}>
         <h2 id="alloc-title" style={{ fontSize: 14, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Capital allocations</h2>
+        {isCFO && <>
+          <label className="checkbox-row"><input type="checkbox" aria-label="Select all payable partner entries" checked={partnerAllocations.some(a => a.profitPending > 0 || (!a.combinationReserved && a.capitalOutstanding > 0)) && partnerAllocations.filter(a => a.profitPending > 0 || (!a.combinationReserved && a.capitalOutstanding > 0)).every(a => selectedPaymentIds.includes(a.id))} onChange={e => setSelectedPaymentIds(e.target.checked ? partnerAllocations.filter(a => a.profitPending > 0 || (!a.combinationReserved && a.capitalOutstanding > 0)).map(a => a.id) : [])} />Select all payable entries</label>
+          <PaymentSelectionActions entries={partnerAllocations.filter(a => selectedPaymentIds.includes(a.id))} onClear={() => setSelectedPaymentIds([])} />
+        </>}
         {partnerAllocations.length === 0 ? (
           <div className="empty-state empty-state--compact">
             <span className="empty-state__icon"><IndianRupee size={22} /></span>
@@ -815,7 +850,7 @@ export function PartnerDetailPage() {
                   <th className="table-th table-th--money">Outstanding</th>
                   <th className="table-th">Return date</th>
                   <th className="table-th table-th--money">Profit accrued</th>
-                  <th className="table-th table-th--money">Profit paid</th>
+                  <th className="table-th table-th--money">Regular profit paid</th><th className="table-th table-th--money">Cashback paid</th><th className="table-th table-th--money">Total profits received</th>
                   <th className="table-th table-th--money">Pending</th>
                   <th className="table-th">Status</th>
                   <th className="table-th table-th--action"><span className="sr-only">Actions</span></th>
@@ -823,10 +858,10 @@ export function PartnerDetailPage() {
               </thead>
               <tbody>
                 {partnerAllocations.map((a) => (
-                  <tr className="table-row" key={a.id}>
-                    <td className="table-cell table-cell--money"><strong>{fmt(a.amountRupees)}</strong></td>
-                    <td className="table-cell"><span className="party-type-chip party-type-chip--partner">{a.profitPercent}% p.m.</span></td>
-                    <td className="table-cell">
+                  <RecordRow className="table-row" key={a.id}>
+                    <td className="table-cell table-cell--money" data-label="Amount">{isCFO && (a.profitPending > 0 || (!a.combinationReserved && a.capitalOutstanding > 0)) && <input className="payment-row-selection" type="checkbox" aria-label={`Select payment entry ${a.id}`} checked={selectedPaymentIds.includes(a.id)} onChange={e => setSelectedPaymentIds(ids => e.target.checked ? [...ids, a.id] : ids.filter(id => id !== a.id))} />}<strong>{fmt(a.amountRupees)}</strong></td>
+                    <td className="table-cell" data-label="Rate"><span className="party-type-chip party-type-chip--partner">{a.profitPercent}% p.m.</span></td>
+                    <td className="table-cell" data-label="Source">
                       {a.creditCard ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>
                           <CreditCardIcon size={12} />{a.creditCard.cardName}
@@ -835,44 +870,44 @@ export function PartnerDetailPage() {
                         <span style={{ color: "var(--muted)", fontSize: 12 }}>Cash</span>
                       )}
                     </td>
-                    <td className="table-cell table-cell--secondary">{formatDate(a.receivedDate)}</td>
-                    <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }}>{fmt(a.totalCapitalReturned)}</td>
-                    <td className="table-cell table-cell--money" style={{ color: a.capitalOutstanding > 0 ? "var(--pending)" : "var(--muted)", fontWeight: a.capitalOutstanding > 0 ? 700 : 400 }}>{fmt(a.capitalOutstanding)}</td>
-                    <td className="table-cell table-cell--secondary">
+                    <td className="table-cell table-cell--secondary" data-label="Received">{formatDate(a.receivedDate)}</td>
+                    <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }} data-label="Returned">{fmt(a.totalCapitalReturned)}</td>
+                    <td className="table-cell table-cell--money" style={{ color: a.capitalOutstanding > 0 ? "var(--pending)" : "var(--muted)", fontWeight: a.capitalOutstanding > 0 ? 700 : 400 }} data-label="Outstanding">{fmt(a.capitalOutstanding)}</td>
+                    <td className="table-cell table-cell--secondary" data-label="Return date">
                       {a.returnDate ? (
                         <span style={{ color: "var(--pending)", display: "inline-flex", alignItems: "center", gap: 3 }}>
                           <CalendarClock size={13} />{formatDate(a.returnDate)}
                         </span>
                       ) : "—"}
                     </td>
-                    <td className="table-cell table-cell--money" style={{ color: "var(--text-soft)" }}>{fmt(a.profitAccrued)}</td>
-                    <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }}>{fmt(a.totalProfitPaid)}</td>
-                    <td className="table-cell table-cell--money"><strong style={{ color: a.profitPending > 0 ? "var(--outgoing)" : "var(--muted)" }}>{fmt(a.profitPending)}</strong></td>
-                    <td className="table-cell">
+                    <td className="table-cell table-cell--money" style={{ color: "var(--text-soft)" }} data-label="Profit accrued">{fmt(a.profitAccrued)}</td>
+                    <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }} data-label="Profit paid">{fmt(a.totalProfitPaid)}</td><td className="table-cell table-cell--money" data-label="Cashback paid">{a.creditCardId ? a.unknownCashbackCount ? 'Amount not recorded' : fmt(a.totalCashbackPaid) : '—'}</td><td className="table-cell table-cell--money" data-label="Total profits received">{fmt(a.totalProfitsReceived)}{a.unknownCashbackCount > 0 && <small> + unrecorded cashback</small>}</td>
+                    <td className="table-cell table-cell--money" data-label="Pending"><strong style={{ color: a.profitPending > 0 ? "var(--outgoing)" : "var(--muted)" }}>{fmt(a.profitPending)}</strong></td>
+                    <td className="table-cell" data-label="Status">
                       <span className={`status-badge ${a.isFullyReturned ? "status-badge--inactive" : "status-badge--active"}`}>
-                        {a.isFullyReturned ? "Returned" : "Active"}
+                        {a.combinedInto ? 'Combined (history)' : a.isFullyReturned ? "Returned" : "Active"}
                       </span>
                     </td>
                     <td className="table-cell table-cell--action">
                       {isCFO && (
                         <div style={{ display: "flex", gap: 4 }}>
-                          <button className="icon-button" type="button" title="Edit return date" onClick={() => setModal({ type: "editReturn", allocationId: a.id, currentReturnDate: a.returnDate })}>
+                          <button className="icon-button" type="button" title="Edit contribution" aria-label="Edit contribution" onClick={() => editRecord(a.id, "CAPITAL_RECEIVED")}>
                             <Edit2 size={14} />
-                          </button>
+                          <span className="mobile-action-label">Edit contribution</span></button>
                           {!a.isFullyReturned && (
-                            <button className="icon-button" type="button" title="Record capital return" onClick={() => setModal({ type: "capitalReturn", allocationId: a.id, capitalOutstanding: a.capitalOutstanding })}>
+                            <button className="icon-button" type="button" title="Record capital return" aria-label="Record return" onClick={() => setModal({ type: "capitalReturn", allocationId: a.id, capitalOutstanding: a.capitalOutstanding })}>
                               <ArrowDownLeft size={14} />
-                            </button>
+                            <span className="mobile-action-label">Record return</span></button>
                           )}
                           {a.profitPending > 0 && (
-                            <button className="icon-button" type="button" title="Record profit payment" onClick={() => setModal({ type: "profitPay", allocationId: a.id, profitPending: a.profitPending })}>
+                            <button className="icon-button" type="button" title="Record profit payment" aria-label="Record profit" onClick={() => setModal({ type: "profitPay", allocationId: a.id, profitPending: a.profitPending })}>
                               <CheckCircle2 size={14} />
-                            </button>
+                            <span className="mobile-action-label">Record profit</span></button>
                           )}
                         </div>
                       )}
                     </td>
-                  </tr>
+                  </RecordRow>
                 ))}
               </tbody>
             </table>
@@ -892,21 +927,23 @@ export function PartnerDetailPage() {
                   <th className="table-th">Allocation</th>
                   <th className="table-th table-th--money">Amount returned</th>
                   <th className="table-th">Notes</th>
+                  {isCFO && <th className="table-th">Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {partnerReturns.map((r) => {
                   const alloc = partnerAllocations.find((a) => a.id === r.allocationId);
                   return (
-                    <tr className="table-row" key={r.id}>
-                      <td className="table-cell table-cell--secondary">{formatDate(r.returnedDate)}</td>
-                      <td className="table-cell table-cell--secondary">{alloc ? `${fmt(alloc.amountRupees)} @ ${alloc.profitPercent}% p.m.` : r.allocationId}</td>
-                      <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }}>
+                    <RecordRow className="table-row" key={r.id}>
+                      <td className="table-cell table-cell--secondary" data-label="Date">{formatDate(r.returnedDate)}</td>
+                      <td className="table-cell table-cell--secondary" data-label="Allocation">{alloc ? `${fmt(alloc.amountRupees)} @ ${alloc.profitPercent}% p.m.` : r.allocationId}</td>
+                      <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }} data-label="Amount returned">
                         <ArrowDownLeft size={13} style={{ verticalAlign: "middle", marginRight: 3 }} />
                         <strong>{fmt(r.amountRupees)}</strong>
                       </td>
-                      <td className="table-cell table-cell--secondary">{(r.notes || "").replace(/\s*WA_CONFIRMED\s*/g, "").trim() || "—"}</td>
-                    </tr>
+                      <td className="table-cell table-cell--secondary" data-label="Notes">{(r.notes || "").replace(/\s*WA_CONFIRMED\s*/g, "").trim() || "—"}{r.paymentGroupId && <small style={{ display: "block" }}>Recorded in a grouped payment</small>}</td>
+                      {isCFO && <td className="table-cell" data-label="Actions"><button className="button button--secondary" type="button" onClick={() => editRecord(r.id, "CAPITAL_RETURNED")} aria-label="Edit capital return"><Edit2 size={14} /> Edit</button></td>}
+                    </RecordRow>
                   );
                 })}
               </tbody>
@@ -927,21 +964,23 @@ export function PartnerDetailPage() {
                   <th className="table-th">Allocation</th>
                   <th className="table-th table-th--money">Amount</th>
                   <th className="table-th">Notes</th>
+                  {isCFO && <th className="table-th">Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {partnerPayments.map((r) => {
                   const alloc = partnerAllocations.find((a) => a.id === r.allocationId);
                   return (
-                    <tr className="table-row" key={r.id}>
-                      <td className="table-cell table-cell--secondary">{formatDate(r.paidDate)}</td>
-                      <td className="table-cell table-cell--secondary">{alloc ? `${fmt(alloc.amountRupees)} @ ${alloc.profitPercent}%` : r.allocationId}</td>
-                      <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }}>
+                    <RecordRow className="table-row" key={r.id}>
+                      <td className="table-cell table-cell--secondary" data-label="Date">{formatDate(r.paidDate)}</td>
+                      <td className="table-cell table-cell--secondary" data-label="Allocation">{alloc ? `${fmt(alloc.amountRupees)} @ ${alloc.profitPercent}%` : r.allocationId}</td>
+                      <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }} data-label="Amount">
                         <TrendingDown size={13} style={{ verticalAlign: "middle", marginRight: 3 }} />
                         <strong>{fmt(r.amountRupees)}</strong>
                       </td>
-                      <td className="table-cell table-cell--secondary">{(r.notes || "").replace(/\s*WA_CONFIRMED\s*/g, "").trim() || "—"}</td>
-                    </tr>
+                      <td className="table-cell table-cell--secondary" data-label="Notes">{(r.notes || "").replace(/\s*WA_CONFIRMED\s*/g, "").trim() || "—"}{r.paymentGroupId && <small style={{ display: "block" }}>Recorded in a grouped payment</small>}</td>
+                      {isCFO && <td className="table-cell" data-label="Actions"><button className="button button--secondary" type="button" onClick={() => editRecord(r.id, "PROFIT_PAID")} aria-label="Edit profit payment"><Edit2 size={14} /> Edit</button></td>}
+                    </RecordRow>
                   );
                 })}
               </tbody>
@@ -956,7 +995,7 @@ export function PartnerDetailPage() {
 
       <div style={{ marginTop: 20, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Link className="button button--secondary" to="/capital-contributions"><IndianRupee size={15} /> All contributions</Link>
-        <Link className="button button--secondary" to="/pending-profits"><TrendingUp size={15} /> Pending profits</Link>
+        <Link className="button button--secondary" to="/pending-profits"><TrendingUp size={15} /> Profits</Link>
         <Link className="button button--secondary" to="/ledger"><TrendingDown size={15} /> Ledger</Link>
         <Link className="button button--secondary" to={`/partners/${id}/statement`} style={{ marginLeft: "auto" }}>
           <FileText size={15} /> Account Statement (PDF)

@@ -96,9 +96,11 @@ export function PortfolioTrendCharts() {
   // ── Chart 2: Monthly Profit Paid per month ──
   const profitData = useMemo(() => {
     const byMonth: Record<string, number> = {};
+    const cashbackByMonth: Record<string, number> = {};
     for (const entry of ledger) {
       const m = getMonthKey(entry.date);
       if (!last12.includes(m)) continue;
+      if (entry.eventType === "CASHBACK_PAID") cashbackByMonth[m] = (cashbackByMonth[m] || 0) + entry.amountRupees;
       if (entry.eventType === "PROFIT_PAID") {
         if (!byMonth[m]) byMonth[m] = 0;
         byMonth[m] += entry.amountRupees;
@@ -107,6 +109,7 @@ export function PortfolioTrendCharts() {
     return last12.map((m) => ({
       month: getMonthLabel(m),
       value: byMonth[m] ?? 0,
+      cashback: cashbackByMonth[m] ?? 0,
     }));
   }, [ledger, last12]);
 
@@ -191,7 +194,8 @@ export function PortfolioTrendCharts() {
                 width={52}
               />
               <Tooltip content={<CustomTooltip valueLabel="Outstanding" />} />
-              <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={36}>
+              <Bar dataKey="cashback" name="Cashback paid" fill="var(--accent)" maxBarSize={36} />
+              <Bar dataKey="value" name="Regular profit paid" radius={[3, 3, 0, 0]} maxBarSize={36}>
                 {capitalOutstandingData.map((entry, i) => (
                   <Cell
                     key={i}
@@ -216,7 +220,7 @@ export function PortfolioTrendCharts() {
           </div>
           <div>
             <h2>Profit Paid by Month</h2>
-            <p className="report-card__sub">Total profit paid to partners each month (last 12 months)</p>
+            <p className="report-card__sub">Regular profit and cashback paid each month (known amounts, last 12 months)</p>
           </div>
         </div>
         <div className="report-card__body" style={{ paddingTop: 8 }}>
@@ -236,8 +240,9 @@ export function PortfolioTrendCharts() {
                 tickLine={false}
                 width={52}
               />
-              <Tooltip content={<CustomTooltip valueLabel="Profit paid" />} />
-              <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={36}>
+              <Tooltip formatter={value => fmtRupees(Number(value))} />
+              <Bar dataKey="cashback" name="Cashback paid" fill="var(--accent)" maxBarSize={36} />
+              <Bar dataKey="value" name="Regular profit paid" radius={[3, 3, 0, 0]} maxBarSize={36}>
                 {profitData.map((entry, i) => (
                   <Cell
                     key={i}

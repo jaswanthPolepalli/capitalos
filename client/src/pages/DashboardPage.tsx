@@ -1,351 +1,594 @@
-import {
-  AlertTriangle,
-  ArrowDownLeft,
-  CalendarClock,
-  CreditCard as CreditCardIcon,
-  IndianRupee,
-  TrendingDown,
-  TrendingUp,
-  Users,
-  Zap,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-
 import { PageHeader } from "../components/PageHeader";
+import { useRole } from "../context/RoleContext";
+import { formatDate } from "../lib/format";
+import type { AllocationSummary, ProfitRecord } from "../store";
 import { useStore } from "../useStore";
+import { RecordProfitModal } from "../components/RecordProfitModal";
+import "./dashboard.css";
 
-function fmt(rupees: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(rupees);
+const fmt = (value: number | null) =>
+  value === null
+    ? "—"
+    : new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0,
+      }).format(value);
+const monthKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+const monthLabel = (key: string) =>
+  new Date(`${key}-01T12:00:00`).toLocaleDateString("en-IN", {
+    month: "long",
+    year: "numeric",
+  });
+const sourceLabel = (a: AllocationSummary) =>
+  a.creditCardId ? (a.creditCard?.cardName ?? "Credit card") : "Cash / bank";
+// Keep current-cycle balances authoritative: subtracting calendar-month payments
+// from the run rate would lose partial settlements and combined-capital rules.
+function metrics(
+  allocations: AllocationSummary[],
+  payments: ProfitRecord[],
+  month: string,
+  current: string,
+  next: string,
+) {
+  const ids = new Set(allocations.map((a) => a.id));
+  const regularPaid = payments.filter(p => ids.has(p.allocationId) && p.paidDate.startsWith(month)).reduce((sum, p) => sum + p.amountRupees, 0);
+  const cashbackPaid = allocations.reduce((sum, a) => sum + (a.cashback?.status === 'paid' && a.cashback.paidDate.startsWith(month) ? a.cashback.amountRupees ?? 0 : 0), 0);
+  return [
+    allocations.reduce((sum, a) => sum + a.contributedAmount, 0),
+    allocations.reduce((sum, a) => sum + a.totalCapitalReturned, 0),
+    allocations.reduce((sum, a) => sum + a.capitalOutstanding, 0),
+    month === current
+      ? allocations.reduce((sum, a) => sum + a.expectedMonthlyProfit, 0)
+      : month === next
+        ? allocations.reduce((sum, a) => sum + a.nextMonthProfit, 0)
+        : null,
+    payments
+      .filter((p) => ids.has(p.allocationId) && p.paidDate.startsWith(month))
+      .reduce((sum, p) => sum + p.amountRupees, 0),
+    month === current
+      ? allocations.reduce(
+          (sum, a) => sum + a.profitPending,
+          0,
+        )
+      : null,
+    cashbackPaid, regularPaid + cashbackPaid,
+  ];
 }
-
-function fmtCompact(rupees: number): string {
-  if (rupees >= 10_000_000) return `₹${(rupees / 10_000_000).toFixed(1)}Cr`;
-  if (rupees >= 100_000) return `₹${(rupees / 100_000).toFixed(1)}L`;
-  return fmt(rupees);
-}
-
-// ─── Hero KPI (primary metric) ────────────────────────────────────────────────
-
-function HeroKPI({
-  label,
-  value,
-  sub,
-  note,
-  tone,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  note?: string;
-  tone?: "positive" | "pending" | "outgoing" | "neutral";
-}) {
-  const accentClass =
-    tone === "positive" ? "hero-kpi--positive"
-    : tone === "pending" ? "hero-kpi--pending"
-    : tone === "outgoing" ? "hero-kpi--outgoing"
-    : "";
-
-  return (
-    <div className={`hero-kpi ${accentClass}`}>
-      <span className="hero-kpi__label">{label}</span>
-      <strong className="hero-kpi__value">{value}</strong>
-      {sub && <p className="hero-kpi__sub">{sub}</p>}
-      {note && <span className="hero-kpi__note">{note}</span>}
-    </div>
-  );
-}
-
-// ─── Standard KPI card ─────────────────────────────────────────────────────────
-
-interface KPIProps {
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: "positive" | "pending" | "outgoing" | "neutral";
-  Icon: React.ElementType;
-}
-
-function KPI({ label, value, sub, tone = "neutral", Icon }: KPIProps) {
-  const toneClass =
-    tone === "positive" ? "metric-card--incoming"
-    : tone === "pending" ? "metric-card--pending"
-    : tone === "outgoing" ? "metric-card--outgoing"
-    : "";
-  return (
-    <article className={`metric-card ${toneClass}`}>
-      <div className="metric-card__header">
-        <span>{label}</span>
-        <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
-      </div>
-      <strong className="financial-value">{value}</strong>
-      {sub && <p>{sub}</p>}
-    </article>
-  );
-}
-
-// ─── Quick action button ──────────────────────────────────────────────────────
-
-function QuickAction({
-  label,
-  to,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  to: string;
-  icon: React.ElementType;
-  tone?: "urgent" | "default";
-}) {
-  return (
-    <Link
-      to={to}
-      className={`quick-action${tone === "urgent" ? " quick-action--urgent" : ""}`}
-    >
-      <Icon size={14} aria-hidden="true" />
-      {label}
-    </Link>
-  );
-}
-
-// ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const { portfolioTotals, partnerSummaries } = useStore();
-  const {
-    totalCapital, capitalOutstanding, totalCapitalReturned,
-    totalProfitPaid, totalProfitPending, expectedMonthlyProfit, activePartners,
-    cashOutstanding, cardOutstanding,
-  } = portfolioTotals;
+  const { allocationSummaries, profitRecords, ledger, isLoaded } = useStore();
+  const { isCFO } = useRole();
+  const now = new Date();
+  const current = monthKey(now);
+  const next = monthKey(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+  const today = `${current}-${String(now.getDate()).padStart(2, "0")}`;
+  const soon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+  const soonKey = `${monthKey(soon)}-${String(soon.getDate()).padStart(2, "0")}`;
+  const [month, setMonth] = useState(current);
+  const [source, setSource] = useState("all");
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (selectedPartner) dialog.current?.showModal();
+    else dialog.current?.close();
+  }, [selectedPartner]);
 
-  const hasCardData = cardOutstanding > 0 || cashOutstanding < capitalOutstanding;
-  const today = new Date().toISOString().slice(0, 10);
-
-  // Capital obligations: partners with outstanding capital, sorted by name
-  const capitalObligations = partnerSummaries
-    .filter((ps) => ps.capitalOutstanding > 0)
-    .sort((a, b) => a.partner.name.localeCompare(b.partner.name));
-
-  // Profit obligations: partners with active capital (expected monthly profit > 0)
-  const profitObligations = partnerSummaries
-    .filter((ps) => ps.expectedMonthlyProfit > 0 || ps.totalProfitPending > 0)
-    .sort((a, b) => (b.totalProfitPending || b.expectedMonthlyProfit) - (a.totalProfitPending || a.expectedMonthlyProfit));
-
-  // Urgency counts for quick actions
-  const overdueCount = partnerSummaries.filter((ps) =>
-    (ps.nextReturnDate && ps.nextReturnDate < today) ||
-    (ps.totalProfitPending > ps.expectedMonthlyProfit * 1.5),
-  ).length;
-
-  const pendingProfitCount = partnerSummaries.filter((ps) => ps.totalProfitPending > 0).length;
+  const months = [
+    ...new Set([
+      next,
+      ...Array.from({ length: 12 }, (_, index) =>
+        monthKey(new Date(now.getFullYear(), now.getMonth() - index, 1)),
+      ),
+      ...profitRecords.map((p) => p.paidDate.slice(0, 7)),
+    ]),
+  ]
+    .sort()
+    .reverse();
+  const filtered = allocationSummaries.filter(
+    (a) =>
+      (source === "all" ||
+        (source === "card" ? !!a.creditCardId : !a.creditCardId)) &&
+      `${a.partner?.name ?? "Unknown partner"} ${sourceLabel(a)}`
+        .toLowerCase()
+        .includes(query.trim().toLowerCase()),
+  );
+  const groups = [...new Set(filtered.map((a) => a.partnerId))]
+    .map((id) => {
+      const allocations = filtered.filter((a) => a.partnerId === id);
+      return {
+        id,
+        name: allocations[0]?.partner?.name ?? "Unknown partner",
+        allocations,
+        values: metrics(allocations, profitRecords, month, current, next),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const totals = metrics(filtered, profitRecords, month, current, next);
+  const overdue = filtered.filter(
+    (a) => a.capitalOutstanding > 0 && a.returnDate && a.returnDate < today,
+  );
+  const upcoming = filtered.filter(
+    (a) =>
+      a.capitalOutstanding > 0 &&
+      a.returnDate &&
+      a.returnDate >= today &&
+      a.returnDate <= soonKey,
+  );
+  const selected = groups.find((g) => g.id === selectedPartner);
+  const paying = selected?.allocations.find((a) => a.id === payingId);
+  const selectedIds = new Set(selected?.allocations.map((a) => a.id));
+  const history = ledger
+    .filter(
+      (e) =>
+        selectedIds.has(e.allocationId) && e.eventType !== "CAPITAL_RECEIVED",
+    )
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt),
+    );
+  const labels = [
+    "Total contributed",
+    "Capital returned",
+    "Capital outstanding",
+    month === next ? "Upcoming profit" : "Expected monthly payout",
+    "Profit paid",
+    "Profit pending",
+  ];
+  const columns = [
+    "Contributed",
+    "Returned",
+    "Outstanding",
+    month === next ? "Upcoming profit" : "Monthly payout",
+    "Paid in month",
+    "Pending now",
+    "Cashback paid", "Total profits received",
+  ];
+  const close = () => {
+    setSelectedPartner(null);
+    setPayingId(null);
+  };
+  const cells = (values: (number | null)[]) =>
+    values.map((value, index) => (
+      <td
+        key={index}
+        data-label={columns[index]}
+        className={
+          index === 2
+            ? "overview-money overview-outstanding"
+            : index === 5 && (value ?? 0) > 0
+              ? "overview-money overview-pending"
+              : "overview-money"
+        }
+      >
+        {fmt(value)}
+      </td>
+    ));
 
   return (
-    <div>
+    <div className="capital-overview">
       <PageHeader
         eyebrow="Command center"
-        title="Financial Overview"
-        description="Total capital under management, obligations, and profit schedule."
+        title="Capital & Profit Overview"
+        description="Capital contributions, returns, and profit payable to partners — together."
+        actions={
+          <Link
+            className="button button--secondary"
+            to="/capital-contributions"
+          >
+            View contributions
+          </Link>
+        }
       />
-
-      {/* ── Hero KPI section ── */}
-      <div className="hero-kpi-row" aria-label="Primary KPIs">
-        <HeroKPI
-          label="Capital outstanding"
-          value={fmtCompact(capitalOutstanding)}
-          sub={fmt(capitalOutstanding)}
-          note={`across ${activePartners} partner${activePartners !== 1 ? "s" : ""}`}
-          tone="pending"
-        />
-        <HeroKPI
-          label="Profit pending"
-          value={fmtCompact(totalProfitPending)}
-          sub={fmt(totalProfitPending)}
-          note={pendingProfitCount > 0 ? `${pendingProfitCount} partners owed` : "All up to date"}
-          tone={totalProfitPending > 0 ? "outgoing" : "positive"}
-        />
-        <HeroKPI
-          label="Expected monthly"
-          value={fmtCompact(expectedMonthlyProfit)}
-          sub={fmt(expectedMonthlyProfit)}
-          note="On active capital"
-          tone="neutral"
-        />
+      <div className="overview-filters">
+        <label className="overview-search">
+          Search partner or card
+          <input
+            type="search"
+            placeholder="Partner name or card…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        <label>
+          Funding source
+          <select value={source} onChange={(e) => setSource(e.target.value)}>
+            <option value="all">All sources</option>
+            <option value="cash">Cash / bank</option>
+            <option value="card">Credit card</option>
+          </select>
+        </label>
+        <label>
+          Profit month
+          <select value={month} onChange={(e) => setMonth(e.target.value)}>
+            {months.map((m) => (
+              <option value={m} key={m}>
+                {monthLabel(m)}
+                {m === current ? " · Current" : m === next ? " · Upcoming" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
-
-      {/* ── Quick actions strip ── */}
-      {(overdueCount > 0 || pendingProfitCount > 0) && (
-        <div className="quick-actions-bar">
-          <span className="quick-actions-bar__label">
-            <Zap size={13} aria-hidden="true" />
-            Quick actions
-          </span>
-          {overdueCount > 0 && (
-            <QuickAction
-              label={`${overdueCount} overdue — check returns`}
-              to="/return-obligations"
-              icon={AlertTriangle}
-              tone="urgent"
-            />
-          )}
-          {pendingProfitCount > 0 && (
-            <QuickAction
-              label={`Pay ${pendingProfitCount} pending profits — ${fmtCompact(totalProfitPending)}`}
-              to="/pending-profits"
-              icon={TrendingUp}
-              tone="urgent"
-            />
-          )}
-          <QuickAction label="View ledger" to="/ledger" icon={IndianRupee} />
-          <QuickAction label="Return schedule" to="/return-obligations" icon={CalendarClock} />
+      {!isLoaded ? (
+        <div className="empty-state" role="status">
+          Loading capital and profit overview…
         </div>
+      ) : (
+        <>
+          <div className="overview-summaries">
+            {[0, 1].map((section) => (
+              <section
+                className="overview-summary"
+                key={section}
+                aria-label={
+                  section === 0 ? "Capital summary" : "Profit summary"
+                }
+              >
+                <div className="overview-section-heading">
+                  <h2>
+                    {section === 0 ? "Capital" : "Profit payable to partners"}
+                  </h2>
+                  <span>
+                    {section === 0
+                      ? "Current position · all contributions"
+                      : monthLabel(month)}
+                  </span>
+                </div>
+                <div className="overview-metrics">
+                  {totals
+                    .slice(section * 3, section * 3 + 3)
+                    .map((value, index) => (
+                      <div
+                        key={index}
+                        className={
+                          index === 2
+                            ? "overview-metric overview-metric--primary"
+                            : "overview-metric"
+                        }
+                      >
+                        <span>{labels[section * 3 + index]}</span>
+                        <strong>{fmt(value)}</strong>
+                      </div>
+                    ))}
+                </div>
+              </section>
+            ))}
+          </div>
+          <div className="earnings-summary"><div><span>Cashback paid</span><strong>{fmt(totals[6] ?? 0)}</strong></div><div><span>Total profits received</span><strong>{fmt(totals[7] ?? 0)}</strong></div><p className="earnings-note">For {monthLabel(month)} · Regular profit + cashback. Cashback never reduces pending profit. Amounts not recorded are excluded.</p></div>
+          <p className="overview-note">
+            {month === current
+              ? "Monthly payout is the run rate on active capital. Paid covers this calendar month; pending is the live unpaid cycle balance."
+              : month === next
+                ? "Upcoming profit includes contributions marked Principal will recur. Pending is available for the current month only."
+                : "Historical months show recorded payments. Expected and pending balances are unavailable for past months."}{" "}
+            Capital figures always show the current position. All totals follow
+            your search and funding filter.
+          </p>
+          {(overdue.length > 0 || upcoming.length > 0) && (
+            <div
+              className="overview-attention"
+              aria-label="Capital return reminders"
+            >
+              {overdue.length > 0 && (
+                <Link to="/return-obligations">
+                  {overdue.length} overdue capital return
+                  {overdue.length === 1 ? "" : "s"} ·{" "}
+                  {fmt(overdue.reduce((s, a) => s + a.capitalOutstanding, 0))}
+                </Link>
+              )}
+              {upcoming.length > 0 && (
+                <Link to="/return-obligations">
+                  {upcoming.length} due in the next 7 days ·{" "}
+                  {fmt(upcoming.reduce((s, a) => s + a.capitalOutstanding, 0))}
+                </Link>
+              )}
+              <span>For matching contributions</span>
+            </div>
+          )}
+          <section
+            className="overview-partners"
+            aria-labelledby="overview-partners-title"
+          >
+            <div className="overview-section-heading">
+              <div>
+                <h2 id="overview-partners-title">Partner overview</h2>
+                <span>
+                  {groups.length} partner{groups.length === 1 ? "" : "s"} ·{" "}
+                  {filtered.length} contributions
+                </span>
+              </div>
+              <Link className="entity-link" to="/pending-profits">
+                All profit payments →
+              </Link>
+            </div>
+            {groups.length === 0 ? (
+              <div className="empty-state">
+                <p>
+                  {allocationSummaries.length
+                    ? "No contributions match your filters."
+                    : "Add your first contribution to see capital and profit together."}
+                </p>
+                {allocationSummaries.length > 0 ? (
+                  <button
+                    className="button button--secondary"
+                    onClick={() => {
+                      setQuery("");
+                      setSource("all");
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                ) : (
+                  <Link
+                    className="button button--primary"
+                    to="/capital-contributions"
+                  >
+                    View contributions
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div
+                className="overview-table-scroll"
+                tabIndex={0}
+                role="region"
+                aria-label="Scrollable partner overview"
+              >
+                <table
+                  className="overview-table"
+                  aria-label="Capital and profit by partner"
+                >
+                  <thead>
+                    <tr>
+                      <th scope="col">Partner / source</th>
+                      {columns.map((label) => (
+                        <th scope="col" key={label} className="overview-money">
+                          {label}
+                        </th>
+                      ))}
+                      <th scope="col">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groups.map((group) => (
+                      <Fragment key={group.id}>
+                        <tr>
+                          <th scope="row">
+                            <button
+                              className="overview-expand"
+                              aria-expanded={expanded.has(group.id)}
+                              aria-label={`${expanded.has(group.id) ? "Collapse" : "Expand"} ${group.name}`}
+                              onClick={() =>
+                                setExpanded((previous) => {
+                                  const updated = new Set(previous);
+                                  if (updated.has(group.id))
+                                    updated.delete(group.id);
+                                  else updated.add(group.id);
+                                  return updated;
+                                })
+                              }
+                            >
+                              {expanded.has(group.id) ? (
+                                <ChevronDown size={15} />
+                              ) : (
+                                <ChevronRight size={15} />
+                              )}
+                              <span>
+                                {group.name}
+                                <small>
+                                  {group.allocations.length} contributions ·{" "}
+                                  {[
+                                    ...new Set(
+                                      group.allocations.map((a) =>
+                                        a.creditCardId ? "Card" : "Cash",
+                                      ),
+                                    ),
+                                  ].join(" + ")}
+                                </small>
+                              </span>
+                            </button>
+                          </th>
+                          {cells(group.values)}
+                          <td>
+                            <button
+                              className="overview-link"
+                              onClick={() => setSelectedPartner(group.id)}
+                              aria-label={`View ${group.name} payments`}
+                            >
+                              Payments →
+                            </button>
+                          </td>
+                        </tr>
+                        {expanded.has(group.id) &&
+                          group.allocations.map((a) => (
+                            <tr className="overview-contribution" key={a.id}>
+                              <th scope="row">
+                                <span>{sourceLabel(a)}</span>
+                                <small>
+                                  {formatDate(a.receivedDate)} ·{" "}
+                                  {a.profitPercent}% p.m.
+                                </small>
+                                <small>
+                                  {a.combinedInto
+                                    ? "Transferred to combined capital"
+                                    : a.receivedDate > today
+                                      ? "Scheduled contribution"
+                                      : a.isFullyReturned
+                                        ? "Capital settled"
+                                        : a.returnDate
+                                          ? `Return ${formatDate(a.returnDate)}`
+                                          : "Return date not set"}
+                                </small>
+                                {a.combination && (
+                                  <small>
+                                    Combined balance · {fmt(a.amountRupees)}
+                                  </small>
+                                )}
+                              </th>
+                              {cells(
+                                metrics(
+                                  [a],
+                                  profitRecords,
+                                  month,
+                                  current,
+                                  next,
+                                ),
+                              )}
+                              <td>
+                                <button
+                                  className="overview-link"
+                                  onClick={() => setSelectedPartner(group.id)}
+                                >
+                                  History
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th scope="row">Filtered total</th>
+                      {cells(totals)}
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </section>
+        </>
       )}
-
-      {/* ── Standard KPI Strip ── */}
-      <section className="metrics-grid" aria-label="Portfolio KPIs">
-        <KPI label="Total capital received" value={fmt(totalCapital)} sub={`from ${activePartners} partner${activePartners !== 1 ? "s" : ""}`} tone="neutral" Icon={IndianRupee} />
-        <KPI label="Total outstanding" value={fmt(capitalOutstanding)} sub="Yet to be returned" tone="pending" Icon={ArrowDownLeft} />
-        {hasCardData && <KPI label="Cash outstanding" value={fmt(cashOutstanding)} sub="Cash / bank contributions" tone="pending" Icon={IndianRupee} />}
-        {hasCardData && <KPI label="Card outstanding" value={fmt(cardOutstanding)} sub="Credit card contributions" tone="pending" Icon={CreditCardIcon} />}
-        <KPI label="Capital returned" value={fmt(totalCapitalReturned)} sub="Paid back to partners" tone="positive" Icon={TrendingDown} />
-        <KPI label="Expected monthly profit" value={fmt(expectedMonthlyProfit)} sub="On outstanding capital" tone="pending" Icon={CalendarClock} />
-        <KPI label="Profit paid (total)" value={fmt(totalProfitPaid)} sub="All time" tone="positive" Icon={TrendingDown} />
-        <KPI label="Active partners" value={String(activePartners)} sub="Capital not fully returned" tone="neutral" Icon={Users} />
-      </section>
-
-      <div className="dashboard-grid" style={{ marginTop: 12 }}>
-        {/* Capital obligations */}
-        <section className="panel" aria-labelledby="cap-obl-title">
-          <div className="panel__header">
-            <div>
-              <p className="eyebrow">Capital</p>
-              <h2 id="cap-obl-title">Capital obligations by partner</h2>
-            </div>
-            <Link className="entity-link" to="/return-obligations">View return schedule →</Link>
+      <dialog
+        ref={dialog}
+        className="overview-drawer"
+        aria-labelledby="overview-drawer-title"
+        onCancel={close}
+        onClose={close}
+      >
+        <div className="overview-drawer-heading">
+          <div>
+            <p className="eyebrow">Partner payments</p>
+            <h2 id="overview-drawer-title">{selected?.name ?? "Partner"}</h2>
           </div>
-          {capitalObligations.length === 0 ? (
-            <div className="empty-state empty-state--compact">
-              <p>No outstanding capital obligations.</p>
-              <Link className="button button--primary" to="/capital-contributions">Record contribution</Link>
-            </div>
-          ) : (
-            <div className="table-wrapper" style={{ border: 0, boxShadow: "none" }}>
-              <table className="data-table" aria-label="Capital obligations">
-                <thead>
-                  <tr>
-                    <th className="table-th">Partner</th>
-                    <th className="table-th table-th--money">Total capital</th>
-                    <th className="table-th table-th--money">Returned</th>
-                    <th className="table-th table-th--money">Outstanding</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {capitalObligations.map((ps) => {
-                    const isOverdue = ps.nextReturnDate ? ps.nextReturnDate < today : false;
-                    return (
-                      <tr className={`table-row${isOverdue ? " table-row--overdue" : ""}`} key={ps.partner.id}>
-                        <td className="table-cell">
-                          <Link className="entity-link" to={`/partners/${ps.partner.id}`}>
-                            {ps.partner.name}
-                          </Link>
-                          {isOverdue && (
-                            <span className="status-badge status-badge--overdue" style={{ marginLeft: 8, fontSize: 10 }}>Overdue</span>
-                          )}
-                        </td>
-                        <td className="table-cell table-cell--money">{fmt(ps.totalCapital)}</td>
-                        <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }}>
-                          {fmt(ps.totalCapitalReturned)}
-                        </td>
-                        <td className="table-cell table-cell--money" style={{ color: "var(--pending)", fontWeight: 700 }}>
-                          {fmt(ps.capitalOutstanding)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: "2px solid var(--border)" }}>
-                    <td className="table-cell" style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700 }}>TOTAL</td>
-                    <td className="table-cell table-cell--money" style={{ fontWeight: 700 }}>{fmt(totalCapital)}</td>
-                    <td className="table-cell table-cell--money" style={{ color: "var(--incoming)", fontWeight: 700 }}>{fmt(totalCapitalReturned)}</td>
-                    <td className="table-cell table-cell--money" style={{ color: "var(--pending)", fontWeight: 700 }}>{fmt(capitalOutstanding)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* Profit obligations */}
-        <section className="panel" aria-labelledby="profit-obl-title">
-          <div className="panel__header">
-            <div>
-              <p className="eyebrow">Profit</p>
-              <h2 id="profit-obl-title">Profit obligations by partner</h2>
-            </div>
-            <Link className="entity-link" to="/pending-profits">View all →</Link>
-          </div>
-          {profitObligations.length === 0 ? (
-            <div className="empty-state empty-state--compact">
-              <p>
-                {partnerSummaries.length === 0
-                  ? "Add partners and capital contributions to track profit obligations."
-                  : "No pending profit obligations — all profits are up to date!"}
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Close payment panel"
+            onClick={close}
+          >
+            <X size={20} />
+          </button>
+        </div>
+        {paying && isCFO ? (
+          <RecordProfitModal
+            key={paying.id}
+            embedded
+            allocationId={paying.id}
+            partnerId={paying.partnerId}
+            pendingAmount={paying.profitPending}
+            expectedMonthlyProfit={
+              paying.combinationReserved
+                ? paying.profitPending
+                : paying.currentCycleProfit
+            }
+            canRecur={!paying.combinationReserved}
+            allocationLabel={`${sourceLabel(paying)} · ${fmt(paying.amountRupees)} @ ${paying.profitPercent}% p.m.`}
+            partnerName={selected?.name ?? "Partner"}
+            partnerPhone={paying.partner?.phone ?? null}
+            capitalOutstanding={paying.capitalOutstanding}
+            profitPercent={paying.profitPercent}
+            fundingSource={paying.creditCardId ? "card" : "cash"}
+            cardName={paying.creditCard?.cardName ?? null}
+            amountGivenDate={paying.receivedDate}
+            onClose={() => setPayingId(null)}
+          />
+        ) : (
+          <>
+            <h3>Current profit balances</h3>
+            {selected?.allocations
+              .filter(
+                (a) =>
+                  a.profitPending > 0,
+              )
+              .map((a) => (
+                <div className="overview-drawer-item" key={a.id}>
+                  <div>
+                    <strong>
+                      {sourceLabel(a)} · {fmt(a.profitPending)}
+                    </strong>
+                    <small>
+                      {formatDate(a.receivedDate)} · {fmt(a.amountRupees)}{" "}
+                      contribution
+                    </small>
+                  </div>
+                  {isCFO && (
+                    <button
+                      className="button button--primary"
+                      onClick={() => setPayingId(a.id)}
+                    >
+                      Record profit
+                    </button>
+                  )}
+                </div>
+              ))}
+            {!selected?.allocations.some(
+              (a) =>
+                a.profitPending > 0,
+            ) && <p className="overview-note">No profit payments pending.</p>}
+            {!isCFO && (
+              <p className="overview-note">
+                Unlock CFO mode to record a payment.
               </p>
-            </div>
-          ) : (
-            <div className="table-wrapper" style={{ border: 0, boxShadow: "none" }}>
-              <table className="data-table" aria-label="Profit obligations">
-                <thead>
-                  <tr>
-                    <th className="table-th">Partner</th>
-                    <th className="table-th table-th--money">Capital</th>
-                    <th className="table-th table-th--money">Exp. monthly</th>
-                    <th className="table-th table-th--money">Profit pending</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {profitObligations.map((ps) => {
-                    const isHighPending = ps.totalProfitPending > ps.expectedMonthlyProfit * 1.5;
-                    return (
-                      <tr className={`table-row${isHighPending ? " table-row--overdue" : ps.totalProfitPending > 0 ? " table-row--attention" : ""}`} key={ps.partner.id}>
-                        <td className="table-cell">
-                          <Link className="entity-link" to={`/partners/${ps.partner.id}`}>
-                            {ps.partner.name}
-                          </Link>
-                        </td>
-                        <td className="table-cell table-cell--money">{fmt(ps.capitalOutstanding)}</td>
-                        <td className="table-cell table-cell--money" style={{ color: "var(--text-soft)" }}>
-                          {fmt(ps.expectedMonthlyProfit)}
-                        </td>
-                        <td className="table-cell table-cell--money" style={{ color: ps.totalProfitPending > 0 ? "var(--outgoing)" : "var(--muted)", fontWeight: 700 }}>
-                          {fmt(ps.totalProfitPending)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: "2px solid var(--border)" }}>
-                    <td className="table-cell" style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700 }}>TOTAL</td>
-                    <td className="table-cell table-cell--money" style={{ fontWeight: 700 }}>{fmt(capitalOutstanding)}</td>
-                    <td className="table-cell table-cell--money" style={{ color: "var(--text-soft)", fontWeight: 700 }}>{fmt(expectedMonthlyProfit)}</td>
-                    <td className="table-cell table-cell--money" style={{ color: "var(--outgoing)", fontWeight: 700 }}>{fmt(totalProfitPending)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 8, paddingTop: 14, marginTop: 4, borderTop: "1px solid var(--border)", flexWrap: "wrap" }}>
-            <Link className="button button--secondary" to="/return-obligations" style={{ fontSize: 12 }}>
-              <CalendarClock size={14} /> Return schedule
-            </Link>
-          </div>
-        </section>
-      </div>
+            )}
+            <h3>
+              Payment history <small>All time · matching funding source</small>
+            </h3>
+            {history.length ? (
+              history.map((e) => (
+                <div className="overview-drawer-item" key={e.id}>
+                  <div>
+                    <strong>
+                      {e.eventType === "PROFIT_PAID"
+                        ? "Profit paid"
+                        : e.eventType === "CASHBACK_PAID" ? "Cashback sharing" : "Capital returned"}
+                    </strong>
+                    <small>
+                      {formatDate(e.date)} ·{" "}
+                      {sourceLabel(
+                        selected!.allocations.find(
+                          (a) => a.id === e.allocationId,
+                        )!,
+                      )}
+                    </small>
+                    {e.notes && <small>{e.notes}</small>}
+                  </div>
+                  <strong>{e.amountUnknown ? "Amount not recorded" : fmt(e.amountRupees)}</strong>
+                </div>
+              ))
+            ) : (
+              <p className="overview-note">No payments recorded yet.</p>
+            )}
+            {selected && (
+              <Link
+                className="button button--secondary"
+                to={`/partners/${selected.id}`}
+              >
+                View partner statement
+              </Link>
+            )}
+          </>
+        )}
+      </dialog>
     </div>
   );
 }

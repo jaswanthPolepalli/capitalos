@@ -1,9 +1,11 @@
+import { RecordRow } from "../components/RecordRow";
+import { OptionalDateInput } from "../components/OptionalDateInput";
 /**
  * Return Obligations — all active allocations that have a return date set,
  * sorted by return date ascending.
  */
 
-import { CalendarClock, ChevronLeft, ChevronRight, Download, Edit2, Search, X } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, CreditCard as CreditCardIcon, Download, Edit2, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -27,10 +29,17 @@ function fmt(rupees: number): string {
 function EditReturnDateModal({ allocationId, currentReturnDate, onClose }: { allocationId: string; currentReturnDate: string | null; onClose: () => void }) {
   const [value, setValue] = useState(currentReturnDate ?? "");
 
-  function handleSubmit(ev: React.FormEvent) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
-    updateAllocationReturnDate(allocationId, value || null);
-    onClose();
+    setSaving(true);
+    try {
+      await updateAllocationReturnDate(allocationId, value || null);
+      onClose();
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to save return date."); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -43,11 +52,12 @@ function EditReturnDateModal({ allocationId, currentReturnDate, onClose }: { all
         <form className="modal__body" onSubmit={handleSubmit}>
           <div className="form-field">
             <label htmlFor="ro-date" className="form-label">Return date <span className="form-label__optional">(leave blank to remove)</span></label>
-            <input id="ro-date" className="form-input" type="date" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+            <OptionalDateInput id="ro-date" className="form-input" value={value} onValueChange={setValue} disabled={saving} autoFocus />
           </div>
+          {error && <p className="form-error" role="alert">{error}</p>}
           <div className="modal__footer">
             <button className="button button--secondary" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button--primary" type="submit"><CalendarClock size={16} /> Save</button>
+            <button className="button button--primary" type="submit" disabled={saving}><CalendarClock size={16} /> Save</button>
           </div>
         </form>
       </div>
@@ -91,6 +101,7 @@ export function ReturnObligationsPage() {
     const q = searchQuery.trim().toLowerCase();
     return (
       (a.partner?.name || "").toLowerCase().includes(q) ||
+      (a.creditCard?.cardName ?? "Cash").toLowerCase().includes(q) ||
       String(a.amountRupees).includes(q) ||
       `${a.profitPercent}`.includes(q) ||
       (a.returnDate || "").includes(q)
@@ -132,9 +143,10 @@ export function ReturnObligationsPage() {
   function handleExportCSV() {
     downloadCSV(
       csvFilename("return-obligations"),
-      ["Partner", "Capital (₹)", "Returned (₹)", "Outstanding (₹)", "Return Date", "Status", "Rate"],
+      ["Partner", "Source", "Capital (₹)", "Returned (₹)", "Outstanding (₹)", "Return Date", "Status", "Rate"],
       withReturnDate.map((a) => [
         a.partner?.name ?? a.partnerId,
+        a.creditCard?.cardName ?? "Cash",
         a.amountRupees,
         a.totalCapitalReturned,
         a.capitalOutstanding,
@@ -196,7 +208,7 @@ export function ReturnObligationsPage() {
               <input
                 className="search-input__field"
                 type="search"
-                placeholder="Search partner, amount, date…"
+                placeholder="Search partner, source, amount, date…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -227,6 +239,7 @@ export function ReturnObligationsPage() {
             <thead>
               <tr>
                 <th className="table-th">Partner</th>
+                <th className="table-th">Source</th>
                 <th className="table-th table-th--money">Capital</th>
                 <th className="table-th table-th--money">Returned so far</th>
                 <th className="table-th table-th--money">Outstanding</th>
@@ -238,7 +251,7 @@ export function ReturnObligationsPage() {
             <tbody>
               {withReturnDate.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     <div className="table-empty" style={{ minHeight: 140 }}>
                       <span className="empty-state__icon"><CalendarClock size={22} /></span>
                       <h3>No return dates set</h3>
@@ -250,11 +263,21 @@ export function ReturnObligationsPage() {
                 paginated.map((a) => {
                   const isOverdue = a.returnDate! < today;
                   return (
-                    <tr className="table-row" key={a.id}>
-                      <td className="table-cell">
+                    <RecordRow className="table-row" key={a.id}>
+                      <td className="table-cell" data-label="Partner">
                         <Link className="entity-link" to={`/partners/${a.partnerId}`}>
                           {a.partner?.name ?? a.partnerId}
                         </Link>
+                      </td>
+                      <td className="table-cell" data-label="Source">
+                        {a.creditCard ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>
+                            <CreditCardIcon size={13} />
+                            {a.creditCard.cardName}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--muted)", fontSize: 12 }}>Cash</span>
+                        )}
                       </td>
                       <td className="table-cell table-cell--money" data-label="Capital"><strong>{fmt(a.amountRupees)}</strong></td>
                       <td className="table-cell table-cell--money" data-label="Returned" style={{ color: "var(--incoming)" }}>{fmt(a.totalCapitalReturned)}</td>
@@ -270,12 +293,12 @@ export function ReturnObligationsPage() {
                       </td>
                       <td className="table-cell table-cell--action">
                         {isCFO && (
-                          <button className="icon-button" type="button" title="Edit return date" onClick={() => setEditId(a.id)}>
+                          <button className="icon-button" type="button" title="Edit return date" aria-label="Edit date" onClick={() => setEditId(a.id)}>
                             <Edit2 size={15} />
-                          </button>
+                          <span className="mobile-action-label">Edit date</span></button>
                         )}
                       </td>
-                    </tr>
+                    </RecordRow>
                   );
                 })
               )}
@@ -309,6 +332,7 @@ export function ReturnObligationsPage() {
                 <thead>
                   <tr>
                     <th className="table-th">Partner</th>
+                    <th className="table-th">Source</th>
                     <th className="table-th table-th--money">Capital</th>
                     <th className="table-th table-th--money">Outstanding</th>
                     <th className="table-th">Rate</th>
@@ -318,22 +342,32 @@ export function ReturnObligationsPage() {
                 </thead>
                 <tbody>
                   {withoutReturnDate.map((a) => (
-                    <tr className="table-row" key={a.id}>
-                      <td className="table-cell">
+                    <RecordRow className="table-row" key={a.id}>
+                      <td className="table-cell" data-label="Partner">
                         <Link className="entity-link" to={`/partners/${a.partnerId}`}>{a.partner?.name ?? a.partnerId}</Link>
                       </td>
-                      <td className="table-cell table-cell--money"><strong>{fmt(a.amountRupees)}</strong></td>
-                      <td className="table-cell table-cell--money" style={{ color: "var(--pending)" }}>{fmt(a.capitalOutstanding)}</td>
-                      <td className="table-cell"><span className="party-type-chip party-type-chip--partner">{a.profitPercent}% p.m.</span></td>
-                      <td className="table-cell table-cell--secondary">{formatDate(a.receivedDate)}</td>
-                      <td className="table-cell table-cell--action">
-                        {isCFO && (
-                          <button className="icon-button" type="button" title="Set return date" onClick={() => setEditId(a.id)}>
-                            <CalendarClock size={15} />
-                          </button>
+                      <td className="table-cell" data-label="Source">
+                        {a.creditCard ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>
+                            <CreditCardIcon size={13} />
+                            {a.creditCard.cardName}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--muted)", fontSize: 12 }}>Cash</span>
                         )}
                       </td>
-                    </tr>
+                      <td className="table-cell table-cell--money" data-label="Capital"><strong>{fmt(a.amountRupees)}</strong></td>
+                      <td className="table-cell table-cell--money" style={{ color: "var(--pending)" }} data-label="Outstanding">{fmt(a.capitalOutstanding)}</td>
+                      <td className="table-cell" data-label="Rate"><span className="party-type-chip party-type-chip--partner">{a.profitPercent}% p.m.</span></td>
+                      <td className="table-cell table-cell--secondary" data-label="Since">{formatDate(a.receivedDate)}</td>
+                      <td className="table-cell table-cell--action">
+                        {isCFO && (
+                          <button className="icon-button" type="button" title="Set return date" aria-label="Set date" onClick={() => setEditId(a.id)}>
+                            <CalendarClock size={15} />
+                          <span className="mobile-action-label">Set date</span></button>
+                        )}
+                      </td>
+                    </RecordRow>
                   ))}
                 </tbody>
               </table>

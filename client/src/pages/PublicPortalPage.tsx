@@ -1,3 +1,4 @@
+import { EarningsSummary } from '../components/EarningsSummary';
 /**
  * Public portal — read-only views shared with partners and CEOs.
  *
@@ -18,7 +19,6 @@ import {
   CreditCard as CreditCardIcon,
   IndianRupee,
   Landmark,
-  Loader2,
   ShieldCheck,
   TrendingDown,
   TrendingUp,
@@ -26,6 +26,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
+import { DataStatus } from "../components/DataStatus";
+import { useStoreStatus } from "../useStoreStatus";
 import { formatDate } from "../lib/format";
 import * as Store from "../store";
 
@@ -232,6 +234,7 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
         )}
       </section>
 
+      <EarningsSummary allocations={allocations} regularProfit={totalProfitPaid} />
       {/* Per-allocation detail */}
       {allocations.length > 0 && (
         <section className="public-portal__section" aria-labelledby="alloc-title">
@@ -271,7 +274,8 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
               })}
             </div>
           </div>
-          <div className="public-portal__table-wrapper">
+          <p className="mobile-table-hint">Each record shows its labelled details below.</p>
+          <div className="public-portal__table-wrapper" tabIndex={0} role="region" aria-label="Scrollable financial records">
             <table className="public-portal__table" aria-label="Capital allocations">
               <thead>
                 <tr>
@@ -281,7 +285,7 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
                   <th>Est. rate</th>
                   <th>Deployed since</th>
                   <th>Return date</th>
-                  <th className="public-portal__th--money">Profit received</th>
+                  <th className="public-portal__th--money">Regular profit received</th><th className="public-portal__th--money">Cashback paid</th><th className="public-portal__th--money">Total profits received</th>
                   <th>Effective %</th>
                   <th className="public-portal__th--money">Profit pending</th>
                 </tr>
@@ -289,7 +293,7 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
               <tbody>
                 {filteredAllocations.length === 0 && (
                   <tr>
-                    <td colSpan={9} style={{ padding: "20px 10px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
+                    <td colSpan={11} style={{ padding: "20px 10px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
                       No allocations match this filter.
                     </td>
                   </tr>
@@ -297,8 +301,8 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
                 {filteredAllocations.map((a) => {
                   // Effective profit % = total profit paid ÷ capital × 100
                   // Shows the real rate actually achieved vs the rough estimate
-                  const effectivePct = a.amountRupees > 0 && a.totalProfitPaid > 0
-                    ? ((a.totalProfitPaid / a.amountRupees) * 100).toFixed(2)
+                  const effectivePct = a.amountRupees > 0 && a.totalProfitsReceived > 0
+                    ? ((a.totalProfitsReceived / a.amountRupees) * 100).toFixed(2)
                     : null;
                   const isAboveEstimate = effectivePct !== null && parseFloat(effectivePct) > a.profitPercent;
                   const isBelowEstimate = effectivePct !== null && parseFloat(effectivePct) < a.profitPercent;
@@ -315,7 +319,7 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
 
                   return (
                   <tr key={a.id} style={a.isFullyReturned ? { opacity: 0.6 } : undefined}>
-                    <td className="public-portal__td--money">
+                    <td className="public-portal__td--money" data-label="Capital">
                       <strong>{fmt(a.amountRupees)}</strong>
                       {a.totalCapitalReturned > 0 && a.totalCapitalReturned < a.amountRupees && (
                         <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
@@ -323,10 +327,10 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
                         </div>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Status">
                       {a.isFullyReturned ? (
                         <span className="public-portal__status public-portal__status--paid">
-                          Returned
+                          {a.combinedInto ? 'Combined (history)' : 'Returned'}
                         </span>
                       ) : (
                         <span className="public-portal__status" style={{ background: "var(--incoming-soft)", color: "var(--incoming)" }}>
@@ -334,7 +338,7 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
                         </span>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Source">
                       {a.creditCard ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>
                           <CreditCardIcon size={12} />
@@ -344,13 +348,13 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
                         <span style={{ fontSize: 11, color: "var(--muted)" }}>Cash</span>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Est. rate">
                       <span className="public-portal__status public-portal__status--pending" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
                         {a.profitPercent}% p.m.
                       </span>
                     </td>
-                    <td>{formatDate(a.receivedDate)}</td>
-                    <td>
+                    <td data-label="Deployed since">{formatDate(a.receivedDate)}</td>
+                    <td data-label="Return date">
                       {actualReturnDate ? (
                         // Show the real date capital was returned
                         <span style={{ color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -366,10 +370,10 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
                         </span>
                       ) : "—"}
                     </td>
-                    <td className="public-portal__td--money" style={{ color: "var(--incoming)" }}>
+                    <td className="public-portal__td--money" style={{ color: "var(--incoming)" }} data-label="Profit received">
                       {fmt(a.totalProfitPaid)}
-                    </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
+                    </td><td className="public-portal__td--money" data-label="Cashback paid">{a.creditCardId ? a.unknownCashbackCount ? 'Amount not recorded' : fmt(a.totalCashbackPaid) : '—'}</td><td className="public-portal__td--money" data-label="Total profits received">{fmt(a.totalProfitsReceived)}{a.unknownCashbackCount > 0 && ' + unrecorded cashback'}</td>
+                    <td style={{ whiteSpace: "nowrap" }} data-label="Effective %">
                       {effectivePct !== null ? (
                         <span style={{
                           display: "inline-flex",
@@ -387,7 +391,7 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
                         <span style={{ color: "var(--muted)", fontSize: 11 }}>—</span>
                       )}
                     </td>
-                    <td className="public-portal__td--money" style={{ color: a.profitPending > 0 ? "var(--pending)" : "var(--muted)" }}>
+                    <td className="public-portal__td--money" style={{ color: a.profitPending > 0 ? "var(--pending)" : "var(--muted)" }} data-label="Profit pending">
                       <strong>{fmt(a.profitPending)}</strong>
                     </td>
                   </tr>
@@ -396,13 +400,13 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
               </tbody>
               <tfoot>
                 <tr style={{ borderTop: "2px solid var(--border)" }}>
-                  <td colSpan={7} style={{ padding: "10px 10px", fontWeight: 700, color: "var(--muted)", fontSize: 11 }}>
+                  <td colSpan={6} data-label="Summary" style={{ padding: "10px 10px", fontWeight: 700, color: "var(--muted)", fontSize: 11 }}>
                     {allocFilter !== "all" ? `TOTAL (${allocFilter})` : "TOTAL"}
                   </td>
-                  <td className="public-portal__td--money" style={{ padding: "10px 10px", color: "var(--incoming)", fontWeight: 700 }}>
+                  <td data-label="Profit received" className="public-portal__td--money" style={{ padding: "10px 10px", color: "var(--incoming)", fontWeight: 700 }}>
                     {fmt(filteredProfitPaid)}
-                  </td>
-                  <td className="public-portal__td--money" style={{ padding: "10px 10px", color: "var(--pending)", fontWeight: 700 }}>
+                  </td><td data-label="Cashback paid">{fmt(filteredAllocations.reduce((sum, a) => sum + a.totalCashbackPaid, 0))}</td><td data-label="Total profits received">{fmt(filteredAllocations.reduce((sum, a) => sum + a.totalProfitsReceived, 0))}</td><td data-label="Effective %">—</td>
+                  <td data-label="Profit pending" className="public-portal__td--money" style={{ padding: "10px 10px", color: "var(--pending)", fontWeight: 700 }}>
                     {fmt(filteredProfitPending)}
                   </td>
                 </tr>
@@ -412,6 +416,7 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
         </section>
       )}
 
+      {allocations.some(a => a.cashback?.status === 'paid') && <section className="public-portal__section"><h2>Cashback sharing history</h2><table className="public-portal__table"><thead><tr><th>Card</th><th>Date shared</th><th>Cashback paid</th></tr></thead><tbody>{allocations.filter(a => a.cashback?.status === 'paid').map(a => a.cashback?.status === 'paid' && <tr key={a.id}><td data-label="Card">{a.creditCard?.cardName || 'Card'}</td><td data-label="Date shared">{formatDate(a.cashback.paidDate)}</td><td data-label="Cashback paid">{a.cashback.amountRupees == null ? 'Amount not recorded' : fmt(a.cashback.amountRupees)}</td></tr>)}</tbody></table></section>}
       {/* Payment history */}
       {allPayments.length > 0 && (
         <section className="public-portal__section" aria-labelledby="history-title">
@@ -462,7 +467,8 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
               )}
             </div>
           </div>
-          <div className="public-portal__table-wrapper">
+          <p className="mobile-table-hint">Each record shows its labelled details below.</p>
+          <div className="public-portal__table-wrapper" tabIndex={0} role="region" aria-label="Scrollable financial records">
             <table className="public-portal__table" aria-label="Payment history">
               <thead>
                 <tr>
@@ -483,11 +489,11 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
                   const alloc = allocations.find((a) => a.id === r.allocationId);
                   return (
                     <tr key={r.id}>
-                      <td>{formatDate(r.paidDate)}</td>
-                      <td style={{ color: "var(--muted)", fontSize: 12 }}>
+                      <td data-label="Date">{formatDate(r.paidDate)}</td>
+                      <td style={{ color: "var(--muted)", fontSize: 12 }} data-label="Capital allocation">
                         {alloc ? `${fmt(alloc.amountRupees)} @ ${alloc.profitPercent}% p.m.` : "—"}
                       </td>
-                      <td className="public-portal__td--money" style={{ color: "var(--incoming)" }}>
+                      <td className="public-portal__td--money" style={{ color: "var(--incoming)" }} data-label="Amount received">
                         <strong>{fmt(r.amountRupees)}</strong>
                       </td>
                     </tr>
@@ -566,19 +572,82 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
 // Shows the CFO's portfolio from the CEO's perspective:
 // total capital outstanding, pending profits, capital return obligations.
 
+type CapitalScheduleSortKey = "receivedDate" | "returnDate" | "partnerName";
+type SortDirection = "asc" | "desc";
+
+function SortableColumnHeader({
+  label,
+  sortKey,
+  activeSort,
+  onSort,
+}: {
+  label: string;
+  sortKey: CapitalScheduleSortKey;
+  activeSort: { key: CapitalScheduleSortKey; direction: SortDirection };
+  onSort: (key: CapitalScheduleSortKey) => void;
+}) {
+  const isActive = activeSort.key === sortKey;
+  const directionLabel = isActive && activeSort.direction === "asc" ? "ascending" : "descending";
+
+  return (
+    <th aria-sort={isActive ? directionLabel : "none"}>
+      <button
+        type="button"
+        className="public-portal__sort-button"
+        onClick={() => onSort(sortKey)}
+        aria-label={`Sort by ${label}${isActive ? `, currently ${directionLabel}` : ""}`}
+      >
+        {label}
+        <span className="public-portal__sort-indicator" aria-hidden="true">
+          {isActive ? (activeSort.direction === "asc" ? "↑" : "↓") : "↕"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
 function CEOPortalContent() {
   const allocationSummaries = Store.getAllocationSummaries();
+  const [capitalScheduleSort, setCapitalScheduleSort] = useState<{
+    key: CapitalScheduleSortKey;
+    direction: SortDirection;
+  }>({ key: "receivedDate", direction: "asc" });
 
-  // Table 1: All active capital (not fully returned), sorted by return obligation date
-  // Items with no return date go to the end
-  const capitalSchedule = allocationSummaries
-    .filter((a) => !a.isFullyReturned)
-    .sort((a, b) => {
-      if (a.returnDate && b.returnDate) return a.returnDate > b.returnDate ? 1 : -1;
-      if (a.returnDate) return -1;
-      if (b.returnDate) return 1;
-      return a.receivedDate.localeCompare(b.receivedDate);
-    });
+  const changeCapitalScheduleSort = (key: CapitalScheduleSortKey) => {
+    setCapitalScheduleSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  // Table 1: All active capital. By default, show capital in the order it was given.
+  // The CEO can also order by return obligation or partner name.
+  const capitalSchedule = useMemo(() => {
+    const direction = capitalScheduleSort.direction === "asc" ? 1 : -1;
+    const compareDates = (first: string | null, second: string | null) => {
+      // Keep undated obligations at the bottom in either direction so scheduled
+      // returns remain easy to scan.
+      if (!first && !second) return 0;
+      if (!first) return 1;
+      if (!second) return -1;
+      return first.localeCompare(second) * direction;
+    };
+
+    return allocationSummaries
+      .filter((a) => !a.isFullyReturned)
+      .sort((a, b) => {
+        if (capitalScheduleSort.key === "partnerName") {
+          return (a.partner?.name || "").localeCompare(b.partner?.name || "", undefined, {
+            sensitivity: "base",
+          }) * direction;
+        }
+
+        return compareDates(
+          capitalScheduleSort.key === "receivedDate" ? a.receivedDate : a.returnDate,
+          capitalScheduleSort.key === "receivedDate" ? b.receivedDate : b.returnDate,
+        );
+      });
+  }, [allocationSummaries, capitalScheduleSort]);
 
   // Table 2: Allocations with pending profit (amount + taken date), sorted by taken date
   const pendingProfitAllocations = allocationSummaries
@@ -612,28 +681,46 @@ function CEOPortalContent() {
         <KPI label="Card outstanding" value={fmt(cardOutstanding)} Icon={CreditCardIcon} sub="Credit card capital" tone={cardOutstanding > 0 ? "pending" : "neutral"} />
       </section>
 
-      {/* Table 1: Capital pending with obligation date — sorted by return obligation date */}
+      <EarningsSummary allocations={allocationSummaries} regularProfit={allocationSummaries.reduce((sum, a) => sum + a.totalProfitPaid, 0)} />
+      {/* Table 1: Capital pending with sortable dates and partner */}
       {capitalSchedule.length > 0 && (
         <section className="public-portal__section" aria-labelledby="returns-title">
           <h2 id="returns-title">Capital return schedule</h2>
-          <div className="public-portal__table-wrapper">
+          <p className="mobile-table-hint">Each record shows its labelled details below.</p>
+          <div className="public-portal__table-wrapper" tabIndex={0} role="region" aria-label="Scrollable financial records">
             <table className="public-portal__table" aria-label="Capital return schedule">
               <thead>
                 <tr>
                   <th className="public-portal__th--money">Amount</th>
                   <th>Source</th>
-                  <th>Amount taken date</th>
-                  <th>Return obligation date</th>
+                  <SortableColumnHeader
+                    label="Partner name"
+                    sortKey="partnerName"
+                    activeSort={capitalScheduleSort}
+                    onSort={changeCapitalScheduleSort}
+                  />
+                  <SortableColumnHeader
+                    label="Capital given date"
+                    sortKey="receivedDate"
+                    activeSort={capitalScheduleSort}
+                    onSort={changeCapitalScheduleSort}
+                  />
+                  <SortableColumnHeader
+                    label="Return obligation date"
+                    sortKey="returnDate"
+                    activeSort={capitalScheduleSort}
+                    onSort={changeCapitalScheduleSort}
+                  />
                   <th>Notes</th>
                 </tr>
               </thead>
               <tbody>
                 {capitalSchedule.map((a) => (
                   <tr key={a.id}>
-                    <td className="public-portal__td--money">
+                    <td className="public-portal__td--money" data-label="Amount">
                       <strong>{fmt(a.capitalOutstanding)}</strong>
                     </td>
-                    <td>
+                    <td data-label="Source">
                       {a.creditCard ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>
                           <CreditCardIcon size={12} />
@@ -643,8 +730,9 @@ function CEOPortalContent() {
                         <span style={{ fontSize: 11, color: "var(--muted)" }}>Cash</span>
                       )}
                     </td>
-                    <td>{formatDate(a.receivedDate)}</td>
-                    <td style={{ color: a.returnDate ? "var(--pending)" : "var(--muted)" }}>
+                    <td data-label="Partner">{a.partner?.name || "—"}</td>
+                    <td data-label="Received date">{formatDate(a.receivedDate)}</td>
+                    <td data-label="Return date" style={{ color: a.returnDate ? "var(--pending)" : "var(--muted)" }}>
                       {a.returnDate ? (
                         <>
                           <CalendarClock size={13} style={{ verticalAlign: "middle", marginRight: 4 }} />
@@ -652,7 +740,7 @@ function CEOPortalContent() {
                         </>
                       ) : "—"}
                     </td>
-                    <td style={{ color: "var(--muted)", fontSize: 12 }}>
+                    <td data-label="Notes" style={{ color: "var(--muted)", fontSize: 12 }}>
                       {(a.notes || "").replace(/\s*WA_CONFIRMED\s*/g, "").trim() || "—"}
                     </td>
                   </tr>
@@ -663,15 +751,18 @@ function CEOPortalContent() {
         </section>
       )}
 
-      {/* Table 2: Profit pending — amount taken + date, total profit pending */}
+      {/* Table 2: Profit pending — show the origin and capital partner for each obligation */}
       {pendingProfitAllocations.length > 0 && (
         <section className="public-portal__section" aria-labelledby="pending-title">
           <h2 id="pending-title">Pending profit obligations</h2>
-          <div className="public-portal__table-wrapper">
+          <p className="mobile-table-hint">Each record shows its labelled details below.</p>
+          <div className="public-portal__table-wrapper" tabIndex={0} role="region" aria-label="Scrollable financial records">
             <table className="public-portal__table" aria-label="Pending profit obligations">
               <thead>
                 <tr>
                   <th className="public-portal__th--money">Amount taken</th>
+                  <th>Source</th>
+                  <th>Partner name</th>
                   <th>Amount taken date</th>
                   <th>Notes</th>
                 </tr>
@@ -679,11 +770,22 @@ function CEOPortalContent() {
               <tbody>
                 {pendingProfitAllocations.map((a) => (
                   <tr key={a.id}>
-                    <td className="public-portal__td--money">
+                    <td className="public-portal__td--money" data-label="Amount taken">
                       <strong>{fmt(a.amountRupees)}</strong>
                     </td>
-                    <td>{formatDate(a.receivedDate)}</td>
-                    <td style={{ color: "var(--muted)", fontSize: 12 }}>
+                    <td data-label="Source">
+                      {a.creditCard ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>
+                          <CreditCardIcon size={12} />
+                          {a.creditCard.cardName}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 11, color: "var(--muted)" }}>Cash</span>
+                      )}
+                    </td>
+                    <td data-label="Partner name">{a.partner?.name || "—"}</td>
+                    <td data-label="Amount taken date">{formatDate(a.receivedDate)}</td>
+                    <td style={{ color: "var(--muted)", fontSize: 12 }} data-label="Notes">
                       {(a.notes || "").replace(/\s*WA_CONFIRMED\s*/g, "").trim() || "—"}
                     </td>
                   </tr>
@@ -728,56 +830,19 @@ function InvalidToken() {
   );
 }
 
-function PortalLoading() {
-  return (
-    <main className="public-portal-shell">
-      <div className="public-portal__brand">
-        <Landmark size={20} aria-hidden="true" />
-        <span>CapitalOS</span>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "80px 20px", color: "var(--muted)" }}>
-        <Loader2 size={28} style={{ animation: "spin 1s linear infinite" }} aria-hidden="true" />
-        <p style={{ margin: 0, fontSize: 14 }}>Loading your portal…</p>
-      </div>
-    </main>
-  );
-}
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function PublicPortalPage() {
   const { token } = useParams<{ token: string }>();
   const reduceMotion = useReducedMotion();
 
-  // Subscribe to store loading state — the store loads data asynchronously
-  // from the Catalyst API. We must wait until it's ready before resolving
-  // the token, otherwise getPartner() returns undefined and the portal
-  // incorrectly shows "Link unavailable".
-  const [loaded, setLoaded] = useState(() => Store.isLoaded());
-
-  useEffect(() => {
-    if (Store.isLoaded()) {
-      setLoaded(true);
-      return;
-    }
-    // Subscribe so we re-render once data arrives
-    const unsub = Store.subscribe(() => {
-      if (Store.isLoaded()) setLoaded(true);
-    });
-    // Trigger a load in case it hasn't started yet (e.g. direct link open)
-    Store.loadAll();
-    return () => { unsub(); };
-  }, []);
-
-  // Show spinner while data is in-flight
-  if (!loaded) {
-    return <PortalLoading />;
-  }
+  const { hasData } = useStoreStatus();
+  if (!hasData) return <main className="public-portal-shell"><DataStatus>{null}</DataStatus></main>;
 
   const access = token ? resolveToken(token) : null;
 
   if (!access) {
-    return <InvalidToken />;
+    return <main className="public-portal-shell"><DataStatus><InvalidToken /></DataStatus></main>;
   }
 
   return (
@@ -793,7 +858,7 @@ export function PublicPortalPage() {
         </span>
       </header>
 
-      <motion.div
+      <DataStatus><motion.div
         initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
@@ -803,7 +868,7 @@ export function PublicPortalPage() {
         ) : (
           <CEOPortalContent />
         )}
-      </motion.div>
+      </motion.div></DataStatus>
 
       <footer className="public-portal__footer">
         <p>This page is read-only and shows only your authorised financial information.</p>

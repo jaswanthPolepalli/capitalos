@@ -37,20 +37,28 @@ All commands must be run from the project root.
 
 ---
 
-## Test Suite — Current Coverage
+## September release coverage
 
-| Test File | Tests | What It Guards |
-|---|---|---|
-| `tests/financial-calculations.test.ts` | 81 | Core BigInt financial math — partner/CEO position, ledger totals, schedule status |
-| `tests/validation.test.ts` | 120 | Zod entity schemas — all input validation for agreements, transactions, schedules, portal |
-| `tests/schema-contract.test.ts` | 45 | Catalyst datastore schema structure, FK rules, PII marking, security rules |
-| `tests/format-utils.test.ts` | 37 | INR formatting (Indian lakh/crore), date & relative time formatting |
-| `tests/soft-delete.test.ts` | 32 | Sentinel-based soft-delete (`markDeleted`/`isDeleted`/restore) — financial data safety |
-| `tests/status-badge.test.ts` | 37 | Status → CSS class mapping, label formatting for all financial screens |
-| `tests/navigation.test.ts` | 36 | Route matching, sub-path resolution, mobile nav completeness |
-| `tests/common-validation.test.ts` | 99 | Primitive schema edge cases: ROWID format, decimal precision, date boundaries |
-| `tests/calculation-integration.test.ts` | 27 | End-to-end: validate → calculate → format pipeline; portal auth guard |
-| **Total** | **514** | |
+Run under Node 24 from `.nvmrc` with npm 11.17.0. The authoritative count is the output of `npm run validate`, not a manually maintained per-file total.
+
+Latest S6 validation: **636 tests across 27 files** passed under Node 24, with type checks, schema checks and production build.
+
+New suites cover:
+
+- `store-loading.test.jsx`: failed initial load versus empty success, full snapshot retention, required endpoint failure, stalled-request timeout, shared refresh and save/refresh races.
+- `freshness-ui.test.jsx`: retry/error/stale display, portal failure, shared listeners, focus/reconnect refresh and visible-only polling.
+- `bulk-loading.test.jsx`: cold-load selection, preserving deselections/edited amounts, reviewing new/changed rows and blocking stale submissions.
+
+- `api-records.test.jsx`: actual API handler pagination beyond 200 rows, logical cascading deletion, restoration, immutable mutation snapshots, and audit failure behavior.
+- `api-imports-reminders.test.jsx`: actual handler validation, concurrent import duplicate reservations, uncertain outcomes, and manual reminder history without external delivery.
+- `operations-domain.test.jsx`: reconciled statement periods, India dates, CSV parsing/formula safety, duplicate previews, and liability horizons.
+- `operations-ui.test.jsx`: statement controls, CSV mapping/review/import results, batch reminder history, recoverable history errors, and keyboard dialog focus.
+- `recovery-store.test.jsx`: restored records re-enter the store and ledger after reload.
+- `mobile-layout.test.ts`: responsive CSS cascade at 320/390/767 pixels. JSDOM does not perform pixel layout; these are regression checks, not device acceptance.
+
+Existing financial, schema, navigation, combination and UI suites remain in the full gate. API tests execute the real handler against an isolated fake Catalyst SDK; they do not prove hosted SDK permissions, schema availability, network delivery or production concurrency correctness.
+
+Before release, verify the additive schema with `npm run schema:operations -- --check` in Development, smoke-test the staged API on Node 24, and check web/mobile layout, keyboard and screen-reader behavior. Browser automation was unavailable during this implementation because computer access remained pending. No live deployment or device pass is claimed.
 
 ---
 
@@ -225,3 +233,103 @@ npm run validate
 ```
 
 Exit code 0 = deploy allowed. Any non-zero exit = block deployment.
+
+---
+
+## Local Frontend Development — Mock Mode
+
+### The problem
+
+The CapitalOS frontend talks to a Catalyst cloud function (`/server/capitalos-api/*`). In local development that endpoint doesn't exist unless you've deployed — running `npm run client:dev` against localhost results in API errors and an empty UI.
+
+### The solution: `VITE_USE_MOCK=true`
+
+A **browser-level fetch interceptor** catches all `/server/capitalos-api/*` calls before they ever leave the browser. The interceptor returns data from local seed JSON files (a snapshot of real production data) and swallows all writes (POST / PATCH / DELETE) silently.
+
+**Nothing you do in mock mode can affect the live Catalyst database. It is physically impossible — no network request is made.**
+
+---
+
+### Step 1 — Seed local data (one-time setup)
+
+```bash
+CATALYST_API_URL=https://your-app.catalystserverless.com/server/capitalos-api npm run seed:local
+```
+
+This fetches all 5 tables from your deployed API and saves them as JSON files:
+
+```
+client/src/mocks/seed/
+  partners.json
+  allocations.json
+  capital-returns.json
+  profit-records.json
+  credit-cards.json
+  _meta.json       ← seed timestamp
+```
+
+> ⚠️ These files are **gitignored** — they contain real financial data and must never be committed.
+
+Re-run `npm run seed:local` any time you want a fresh snapshot of production data.
+
+---
+
+### Step 2 — Start the dev server in mock mode
+
+```bash
+npm run client:dev:mock
+# equivalent to: VITE_USE_MOCK=true npm run client:dev
+```
+
+The browser console confirms mock mode is active:
+
+```
+[CapitalOS Mock Mode] 🧪 All API calls are intercepted — no live data will be read or written.
+[CapitalOS Mock Mode] Seed: partners: 5, allocations: 12, capital-returns: 3, ...
+```
+
+---
+
+### What mock mode does
+
+| Operation | What happens |
+|---|---|
+| GET `/server/capitalos-api/partners` | Returns your seeded `partners.json` rows |
+| POST (add partner) | Adds to in-memory list with a fake ID — **resets on refresh** |
+| PATCH (edit) | Updates in-memory row — **resets on refresh** |
+| DELETE (soft-delete) | Removes from in-memory list — **resets on refresh** |
+| Any non-API fetch (fonts, icons, etc.) | Passes through to real fetch normally |
+
+### Safety guarantees
+
+| Risk | Status |
+|---|---|
+| Accidentally saving test data to production | ✅ **Impossible** — no network request is made |
+| Accidentally reading stale cached production data | ✅ **Impossible** — data comes from local seed files |
+| Mock data persisting after page refresh | ✅ **Impossible** — in-memory only |
+| Mock mode accidentally running in production build | ✅ **Impossible** — `__USE_MOCK__` is `false` in prod, code is tree-shaken out |
+
+---
+
+### Two-environment safety (even without mock mode)
+
+Catalyst provides **environment isolation** out of the box:
+
+| Environment | How to access | Database |
+|---|---|---|
+| **Development** | `catalyst serve` locally | Isolated dev datastore — mutations stay here |
+| **Production** | `catalyst deploy` then visit live URL | Production datastore — only touched by deploy |
+
+So even if you run `npm run client:dev` without mock mode, mutations go to the **dev datastore**, not production.
+
+---
+
+### Relevant files
+
+| File | Purpose |
+|---|---|
+| `scripts/seed-local.ts` | Fetches all tables from the deployed Catalyst API and writes seed JSON files |
+| `client/src/mocks/mockFetch.ts` | The fetch interceptor — installs on `window.fetch` in mock mode |
+| `client/src/mocks/seed/` | Where seed JSON files live (gitignored) |
+| `client/vite.config.ts` | Exposes `__USE_MOCK__` boolean from `VITE_USE_MOCK` env var |
+| `client/src/main.tsx` | Installs mock fetch before React mounts when `__USE_MOCK__` is true |

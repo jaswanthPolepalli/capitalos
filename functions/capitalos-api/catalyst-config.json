@@ -1,9 +1,11 @@
 {
   "deployment": {
     "name": "capitalos-api",
-    "stack": "node18",
+    "stack": "node24",
     "type": "advancedio",
-    "env_variables": {}
+    "env_variables": {
+      "APP_BASE_URL": "https://capitalos-60088793510.development.catalystserverless.in/app"
+    }
   },
   "execution": {
     "main": "index.js"

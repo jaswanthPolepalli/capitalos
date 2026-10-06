@@ -101,6 +101,30 @@
         "dependsOn": []
       },
       {
+        "type": "table",
+        "name": "COS_Activity",
+        "properties": {
+          "table_name": "COS_Activity"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "COS_Reminders",
+        "properties": {
+          "table_name": "COS_Reminders"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "table",
+        "name": "COS_Imports",
+        "properties": {
+          "table_name": "COS_Imports"
+        },
+        "dependsOn": []
+      },
+      {
         "type": "column",
         "name": "Partners-partner_code",
         "properties": {
@@ -2768,6 +2792,626 @@
         },
         "dependsOn": [
           "Datastore.table.COS_CreditCards"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Activity-event_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "event_id",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Activity",
+          "table_name": "COS_Activity",
+          "max_length": 80
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Activity-operation_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "operation_id",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "COS_Activity",
+          "table_name": "COS_Activity",
+          "max_length": 80
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Activity-entity_type",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "entity_type",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "COS_Activity",
+          "table_name": "COS_Activity",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Activity-entity_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "entity_id",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": true,
+          "table_id": "COS_Activity",
+          "table_name": "COS_Activity",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Activity-action",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "action",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Activity",
+          "table_name": "COS_Activity",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Activity-status",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "status",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Activity",
+          "table_name": "COS_Activity",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Activity-actor",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "actor",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Activity",
+          "table_name": "COS_Activity",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Activity-occurred_at",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "occurred_at",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "COS_Activity",
+          "table_name": "COS_Activity",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Activity-before_state",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "before_state",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "COS_Activity",
+          "table_name": "COS_Activity",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Activity-after_state",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "after_state",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "COS_Activity",
+          "table_name": "COS_Activity",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Activity-reason",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "reason",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "COS_Activity",
+          "table_name": "COS_Activity",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "COS_Activity-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "COS_Activity"
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "COS_Activity-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "INSERT"
+          ],
+          "table_name": "COS_Activity"
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Activity"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-event_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "event_id",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 80
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-obligation_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "obligation_id",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 255
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-partner_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "partner_id",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-allocation_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "allocation_id",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-kind",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "kind",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-action",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "action",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-channel",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "channel",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-amount_paise",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "amount_paise",
+          "data_type": "bigint",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 19
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-due_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "due_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-follow_up_date",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "follow_up_date",
+          "data_type": "date",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-notes",
+        "properties": {
+          "audit_consent": true,
+          "decimal_digits": 2,
+          "column_name": "notes",
+          "data_type": "text",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 10000
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Reminders-occurred_at",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "occurred_at",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": true,
+          "table_id": "COS_Reminders",
+          "table_name": "COS_Reminders",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "COS_Reminders-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "COS_Reminders"
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "COS_Reminders-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "INSERT"
+          ],
+          "table_name": "COS_Reminders"
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Reminders"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Imports-import_key",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "import_key",
+          "data_type": "varchar",
+          "is_unique": true,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Imports",
+          "table_name": "COS_Imports",
+          "max_length": 80
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Imports"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Imports-entity_type",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "entity_type",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Imports",
+          "table_name": "COS_Imports",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Imports"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Imports-entity_id",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "entity_id",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": false,
+          "search_index_enabled": false,
+          "table_id": "COS_Imports",
+          "table_name": "COS_Imports",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Imports"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Imports-status",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "status",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Imports",
+          "table_name": "COS_Imports",
+          "max_length": 40
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Imports"
+        ]
+      },
+      {
+        "type": "column",
+        "name": "COS_Imports-occurred_at",
+        "properties": {
+          "audit_consent": false,
+          "decimal_digits": 2,
+          "column_name": "occurred_at",
+          "data_type": "varchar",
+          "is_unique": false,
+          "is_mandatory": true,
+          "search_index_enabled": false,
+          "table_id": "COS_Imports",
+          "table_name": "COS_Imports",
+          "max_length": 50
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Imports"
+        ]
+      },
+      {
+        "type": "tableScope",
+        "name": "COS_Imports-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "table_scope": "GLOBAL",
+          "type": "App Administrator",
+          "table_name": "COS_Imports"
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Imports"
+        ]
+      },
+      {
+        "type": "tablePermission",
+        "name": "COS_Imports-App Administrator",
+        "properties": {
+          "role_name": "App Administrator",
+          "type": "App Administrator",
+          "table_permissions": [
+            "SELECT",
+            "UPDATE",
+            "INSERT"
+          ],
+          "table_name": "COS_Imports"
+        },
+        "dependsOn": [
+          "Datastore.table.COS_Imports"
         ]
       }
     ]

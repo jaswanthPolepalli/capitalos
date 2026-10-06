@@ -8,3 +8,15 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Local dev seed data — contains real production data, never commit
+client/src/mocks/seed/*.json
+
+# Generated standalone monthly job dependencies (prepared during validation)
+functions/capitalos-month-end/shared/
+functions/capitalos-daily-summary/shared/
+
+# Local reports, financial exports and temporary rendering artifacts
+/tmp/
+/output/
+/outputs/

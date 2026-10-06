@@ -20,6 +20,9 @@ const EXPECTED_TABLES = [
   "AuditEvents",
   "SchemaVersions",
   "COS_CreditCards",
+  "COS_Activity",
+  "COS_Reminders",
+  "COS_Imports",
 ] as const;
 
 const REQUIRED_UNIQUE_COLUMNS: Record<string, readonly string[]> = {

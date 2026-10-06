@@ -44,9 +44,9 @@ describe("getNavigationItem — exact path matches", () => {
     expect(item.label).toBe("Capital Contributions");
   });
 
-  it("'/pending-profits' → Pending Profits", () => {
+  it("'/pending-profits' → Profits", () => {
     const item = getNavigationItem("/pending-profits");
-    expect(item.label).toBe("Pending Profits");
+    expect(item.label).toBe("Profits");
   });
 
   it("'/return-obligations' → Return Obligations", () => {
