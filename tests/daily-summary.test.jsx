@@ -14,7 +14,7 @@ describe('daily summary balances and scheduling', () => {
   it('uses only WhatsApp-confirmed dates, including mixed and missing dates on one card', () => {
     const s = seed();
     s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'unconfirmed', return_date: '2026-10-01', notes: '' });
-    expect(buildDailySummary(dataset(s), window).rows[0].due).toEqual(['2026-12-01', null]);
+    expect(buildDailySummary(dataset(s), window).rows.map(r => r.due)).toEqual([['2026-12-01'], [null]]);
     s.COS_Allocations[0].return_date = null;
     expect(buildDailySummary(dataset(s), window).rows[0].due).toEqual([null]);
   });
@@ -61,7 +61,8 @@ describe('daily summary balances and scheduling', () => {
     const s = seed(); s.COS_Profits = [];
     s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'combined', amount_rupees: 9000, received_date: '2026-10-06', notes: PREFIX + JSON.stringify({ notes: '', combination: { effectiveDate: '2026-10-06', sources: [{ id: 'a', capital: 9000, pending: 300, profitRecordIds: [] }] } }) });
     const report = buildDailySummary(dataset(s), window);
-    expect(report.rows[0]).toMatchObject({ amount: 9000, profit: 570 });
+    expect(report.rows.find(r => r.billed)).toMatchObject({ amount: 0, profit: 300, due: ['2026-12-01'] });
+    expect(report.rows.find(r => !r.billed)).toMatchObject({ amount: 9000, profit: 270, due: [null] });
     expect(report.cb).toHaveLength(1); expect(report.activity.additions).toBe(0);
   });
   it('excludes deleted, hidden and future contributions/payments, and includes cash in daily activity only', () => {
@@ -181,4 +182,18 @@ it('keeps unpaid follow-up and totals consistent after a separate additional cas
   expect(after.cb).toEqual(before.cb);
   expect(after.rows).toEqual(before.rows.map(row=>({...row,last:window.date})));
   expect(after.activity.cashback).toBe(500);
+});
+
+it('separates a partially paid bill from new unbilled spending without changing totals', () => {
+  const s = seed();
+  s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'new-spend', amount_rupees: 20000, received_date: '2026-10-06', return_date: '2026-11-01', notes: '' });
+  const report = buildDailySummary(dataset(s), window);
+  expect(report.rows).toHaveLength(2);
+  expect(report.rows[0]).toMatchObject({ cardId: 'c', billed: true, amount: 9000, profit: 0, due: ['2026-12-01'] });
+  expect(report.rows[1]).toMatchObject({ cardId: 'c', billed: false, amount: 20000, profit: 600, due: [null] });
+  expect(report.rows.reduce((n, r) => n + r.amount, 0)).toBe(29000);
+  s.COS_Returns[0].amount_rupees = 10000;
+  const paid = buildDailySummary(dataset(s), window);
+  expect(paid.rows.find(r => !r.billed).amount).toBe(20000);
+  expect(paid.rows.find(r => r.billed).amount).toBe(0);
 });

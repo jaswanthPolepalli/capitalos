@@ -61,15 +61,17 @@ function buildDailySummary(data, window = dailyWindow()) {
     const card = cards.find(c => String(c.ROWID) === a.creditCardId && String(c.partner_id) === a.partnerId);
     const partner = partners.find(p => String(p.ROWID) === a.partnerId);
     if (!card || !partner) throw new Error('A contribution has an unavailable card or partner; summary not sent.');
-    const key = `${a.partnerId}:${a.creditCardId}`;
-    const row = groups.get(key) || { partner: partner.name || 'Partner', card: card.card_name || 'Credit card', amount: 0, profit: 0, due: [], last: '', count: 0 };
+    // A confirmed statement and subsequent unbilled spending are separate balances.
+    const billed = Boolean(a.dueDateConfirmed && a.returnDate);
+    const key = `${a.partnerId}:${a.creditCardId}:${billed ? 'billed' : 'unbilled'}`;
+    const row = groups.get(key) || { cardId: a.creditCardId, billed, partner: partner.name || 'Partner', card: card.card_name || 'Credit card', amount: 0, profit: 0, due: [], last: '', count: 0 };
     const rs = returns.filter(r => r.allocationId === a.id), ps = profits.filter(p => p.allocationId === a.id);
     const remaining = a.amountRupees - sum(rs.map(r => r.amountRupees));
     if (remaining < 0) throw new Error('Capital returns exceed the contribution; summary not sent.');
     const outstanding = transferred.has(a.id) ? 0 : remaining;
     row.amount = sum([row.amount, outstanding]);
     row.profit = sum([row.profit, money(pendingProfit(a, allocations, profits, window.date, returns))]);
-    if (outstanding > 0) row.due.push(a.dueDateConfirmed ? a.returnDate : null);
+    row.due.push(billed ? a.returnDate : null);
     row.last = [row.last, a.receivedDate, ...rs.map(r => r.returnedDate), ...ps.map(p => p.paidDate), ...(a.cashback?.status === 'paid' && a.cashback.paidDate <= window.date ? [a.cashback.paidDate] : [])].sort().at(-1);
     row.count++;
     groups.set(key, row);

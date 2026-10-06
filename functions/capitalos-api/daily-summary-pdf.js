@@ -54,7 +54,7 @@ function renderDailySummary(summary) {
         [[...['additions', 'returns', 'profits'].map(k => money(summary.activity[k])), summary.activity.unknownCashbackCount ? `${money(summary.activity.cashback)} + ${summary.activity.unknownCashbackCount} unrecorded` : money(summary.activity.cashback)]], Array(4).fill(width / 4), [], true);
       y += 24; text('Card section', 17);
       const rows = summary.rows.map(r => [r.partner, r.card, money(r.amount), r.due.length ? r.due.map(d => d ? date(d) : 'Bill not generated').join('\n') : 'Bill not generated', r.profit ? money(r.profit) : 'Profit paid']);
-      rows.push(['Total', `${summary.rows.length} cards`, money(summary.rows.reduce((s, r) => s + r.amount, 0)), '', money(summary.rows.reduce((s, r) => s + r.profit, 0))]);
+      rows.push(['Total', `${new Set(summary.rows.map(r => r.cardId || `${r.partner}:${r.card}`)).size} cards`, money(summary.rows.reduce((s, r) => s + r.amount, 0)), '', money(summary.rows.reduce((s, r) => s + r.profit, 0))]);
       table(['PARTNER NAME', 'CARD NAME', 'CUMULATIVE\nTOTAL (INR)', 'DUE DATE', 'PROFIT PENDING\n(INR)'], rows, [85, 157, 94, 91, width - 427], [2, 4], false, true);
       doc.addPage(); y = 40; text('Cashback follow-up', 17, navy, 20);
       if (!summary.cb.length) text('No cashback to follow up.', 10);
