@@ -65,20 +65,23 @@ function buildDailySummary(data, window = dailyWindow()) {
     const billed = Boolean(a.dueDateConfirmed && a.returnDate);
     const key = `${a.partnerId}:${a.creditCardId}:${billed ? 'billed' : 'unbilled'}`;
     const row = groups.get(key) || { cardId: a.creditCardId, billed, partner: partner.name || 'Partner', card: card.card_name || 'Credit card', amount: 0, profit: 0, due: [], last: '', count: 0 };
-    const rs = returns.filter(r => r.allocationId === a.id), ps = profits.filter(p => p.allocationId === a.id);
+    const rs = returns.filter(r => r.allocationId === a.id);
     const remaining = a.amountRupees - sum(rs.map(r => r.amountRupees));
     if (remaining < 0) throw new Error('Capital returns exceed the contribution; summary not sent.');
     const outstanding = transferred.has(a.id) ? 0 : remaining;
     row.amount = sum([row.amount, outstanding]);
     row.profit = sum([row.profit, money(pendingProfit(a, allocations, profits, window.date, returns))]);
-    row.due.push(billed ? a.returnDate : null);
-    row.last = [row.last, a.receivedDate, ...rs.map(r => r.returnedDate), ...ps.map(p => p.paidDate), ...(a.cashback?.status === 'paid' && a.cashback.paidDate <= window.date ? [a.cashback.paidDate] : [])].sort().at(-1);
+    // Settled contributions must not contribute stale dates or reorder active balances.
+    if (outstanding > 0) {
+      row.due.push(billed ? a.returnDate : null);
+      row.last = [row.last, a.receivedDate].sort().at(-1);
+    }
     row.count++;
     groups.set(key, row);
     if (['review', 'unpaid'].includes(cashbackStatus(a))) cashbackRows.push({ partner: row.partner, card: row.card, amount: a.amountRupees, date: a.receivedDate, status: cashbackStatus(a) });
   }
-  const rows = [...groups.values()].map(row => ({ ...row, due: [...new Set(row.due)].sort((a, b) => (a || '9999').localeCompare(b || '9999')) }));
-  rows.sort((a, b) => (a.due.find(Boolean) || '9999').localeCompare(b.due.find(Boolean) || '9999') || b.last.localeCompare(a.last) || a.partner.localeCompare(b.partner) || a.card.localeCompare(b.card));
+  const rows = [...groups.values()].filter(row => row.amount > 0).map(row => ({ ...row, due: [...new Set(row.due)].sort((a, b) => (a || '9999').localeCompare(b || '9999')) }));
+  rows.sort((a, b) => (a.due.find(Boolean) || '9999').localeCompare(b.due.find(Boolean) || '9999') || (a.billed ? b.last.localeCompare(a.last) : a.last.localeCompare(b.last)) || a.partner.localeCompare(b.partner) || a.card.localeCompare(b.card));
   cashbackRows.sort((a, b) => a.partner.localeCompare(b.partner) || a.card.localeCompare(b.card) || a.date.localeCompare(b.date));
   const cashbacks = allocations.filter(a => a.cashback?.status === 'paid' && a.cashback.paidDate <= window.date);
   const movements = [

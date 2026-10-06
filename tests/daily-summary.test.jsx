@@ -18,7 +18,7 @@ describe('daily summary balances and scheduling', () => {
     s.COS_Allocations[0].return_date = null;
     expect(buildDailySummary(dataset(s), window).rows[0].due).toEqual([null]);
   });
-  it('keeps a paid card at zero and sums unpaid profit across contributions', () => {
+  it('shows Profit paid for settled profit and sums unpaid profit across contributions', () => {
     const s = seed();
     expect(buildDailySummary(dataset(s), window).rows[0].profit).toBe(0);
     s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'unpaid' });
@@ -36,20 +36,20 @@ describe('daily summary balances and scheduling', () => {
     expect(report.cb.map(r => [r.amount, r.status])).toEqual([[10000, 'review'], [20000, 'unpaid']]);
     expect(report.activity).toMatchObject({ additions: 20000, returns: 0, profits: 0, cashback: 0, count: 1 });
   });
-  it('orders due dates first and undated cards by latest transaction including cashback', () => {
+  it('orders due dates first and unbilled cards oldest spending first regardless of cashback', () => {
     const s = seed(); s.COS_Allocations[0].return_date = null;
     for (const [id, due] of [['d', '2026-10-10'], ['e', null]]) {
       s.COS_CreditCards.push({ ...s.COS_CreditCards[0], ROWID: id, card_name: id });
-      s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: id, credit_card_id: id, return_date: due, cashback_data: JSON.stringify({ status: 'paid', amountRupees: 10, paidDate: '2026-10-06' }) });
+      s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: id, credit_card_id: id, return_date: due, received_date: id === 'e' ? '2026-10-01' : '2026-01-01', cashback_data: JSON.stringify({ status: 'paid', amountRupees: 10, paidDate: '2026-10-06' }) });
     }
-    expect(buildDailySummary(dataset(s), window).rows.map(r => r.card)).toEqual(['d', 'e', 'Synthetic Card']);
+    expect(buildDailySummary(dataset(s), window).rows.map(r => r.card)).toEqual(['d', 'Synthetic Card', 'e']);
   });
   it('handles full returns, partial profit, paid/not-applicable cashback and unknown amounts independently', () => {
     const s = seed(); s.COS_Returns[0].amount_rupees = 10000;
     s.COS_Profits[0].notes = 'Partial payment · Remaining: ₹150';
     s.COS_Allocations[0].cashback_data = JSON.stringify({ status: 'paid', amountRupees: null, paidDate: '2026-10-06' });
     const report = buildDailySummary(dataset(s), window);
-    expect(report.rows[0]).toMatchObject({ amount: 0, profit: 150 });
+    expect(report.rows).toEqual([]); // Zero capital rows are omitted even if profit remains due.
     expect(report.cb).toEqual([]);
     expect(report.activity).toMatchObject({ cashback: 0, unknownCashbackCount: 1, count: 1 });
     s.COS_Allocations[0].cashback_data = JSON.stringify({ status: 'not_applicable' });
@@ -57,11 +57,11 @@ describe('daily summary balances and scheduling', () => {
     delete s.COS_Allocations[0].cashback_data;
     expect(buildDailySummary(dataset(s), window).cb).toHaveLength(1);
   });
-  it('does not double-count combined capital and retains original cashback and pending profit', () => {
+  it('omits transferred zero-capital sources and counts combined capital once while retaining cashback follow-up', () => {
     const s = seed(); s.COS_Profits = [];
     s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'combined', amount_rupees: 9000, received_date: '2026-10-06', notes: PREFIX + JSON.stringify({ notes: '', combination: { effectiveDate: '2026-10-06', sources: [{ id: 'a', capital: 9000, pending: 300, profitRecordIds: [] }] } }) });
     const report = buildDailySummary(dataset(s), window);
-    expect(report.rows.find(r => r.billed)).toMatchObject({ amount: 0, profit: 300, due: ['2026-12-01'] });
+    expect(report.rows.find(r => r.billed)).toBeUndefined();
     expect(report.rows.find(r => !r.billed)).toMatchObject({ amount: 9000, profit: 270, due: [null] });
     expect(report.cb).toHaveLength(1); expect(report.activity.additions).toBe(0);
   });
@@ -180,7 +180,7 @@ it('keeps unpaid follow-up and totals consistent after a separate additional cas
   expect((await h.request('PATCH','allocations/extra/cashback',{status:'paid',amountRupees:500,paidDate:window.date})).status).toBe('success');
   const after=buildDailySummary(dataset(h.db),window);
   expect(after.cb).toEqual(before.cb);
-  expect(after.rows).toEqual(before.rows.map(row=>({...row,last:window.date})));
+  expect(after.rows).toEqual(before.rows);
   expect(after.activity.cashback).toBe(500);
 });
 
@@ -195,5 +195,31 @@ it('separates a partially paid bill from new unbilled spending without changing 
   s.COS_Returns[0].amount_rupees = 10000;
   const paid = buildDailySummary(dataset(s), window);
   expect(paid.rows.find(r => !r.billed).amount).toBe(20000);
-  expect(paid.rows.find(r => r.billed).amount).toBe(0);
+  expect(paid.rows.find(r => r.billed)).toBeUndefined();
+});
+
+it('omits a settled confirmed date while retaining the confirmed date of the unpaid bill', () => {
+  const s = seed();
+  s.COS_Returns[0].amount_rupees = 10000;
+  s.COS_Allocations[0].return_date = '2026-09-24';
+  s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'current-bill', received_date: '2026-09-16', return_date: '2026-10-24' });
+  expect(buildDailySummary(dataset(s), window).rows).toMatchObject([{ amount: 10000, due: ['2026-10-24'] }]);
+  s.COS_Allocations[1].notes = '';
+  expect(buildDailySummary(dataset(s), window).rows).toMatchObject([{ billed: false, due: [null] }]);
+});
+
+it('sorts unbilled cards by their latest outstanding spend, ignoring later payments and settled spending', () => {
+  const s = seed();
+  Object.assign(s.COS_Allocations[0], { notes: '', received_date: '2026-09-01' });
+  Object.assign(s.COS_Returns[0], { returned_date: '2026-10-06' });
+  s.COS_CreditCards.push({ ...s.COS_CreditCards[0], ROWID: 'new-card', card_name: 'New card' });
+  s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'new-spend', credit_card_id: 'new-card', received_date: '2026-10-01' },
+    { ...s.COS_Allocations[0], ROWID: 'settled-spend', received_date: '2026-10-06' });
+  s.COS_Returns.push({ ...s.COS_Returns[0], ROWID: 'settled-return', allocation_id: 'settled-spend', amount_rupees: 10000 });
+  let rows = buildDailySummary(dataset(s), window).rows;
+  expect(rows.map(r => r.cardId)).toEqual(['c', 'new-card']);
+  expect(rows[0].last).toBe('2026-09-01');
+  s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'latest-active', received_date: '2026-10-06' });
+  rows = buildDailySummary(dataset(s), window).rows;
+  expect(rows.map(r => r.cardId)).toEqual(['new-card', 'c']);
 });

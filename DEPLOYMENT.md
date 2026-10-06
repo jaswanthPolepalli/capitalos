@@ -1,5 +1,7 @@
 # CapitalOS — Deployment & Project Reference
 
+**Latest correction — 7 October 2026:** Daily PDFs hide zero-capital rows, show confirmed due dates only for outstanding contributions, and order unbilled cards by spending date oldest-first. API and daily worker deployed after fresh 655-record backups, recovery restoration and rollback rehearsal, 850 tests and hosted checks. See [release evidence and rollback](docs/deployment-summary-active-order-2026-10-07.md).
+
 **Latest release — 7 October 2026:** Daily PDFs now separate confirmed billed balances from unbilled spending for the same card, with pending profit in the corresponding row and distinct-card totals. API and daily worker deployed after fresh 653-record backups, verified recovery restoration and rollback rehearsal, 848 tests and hosted PDF/API checks. See [release evidence and rollback](docs/deployment-billed-unbilled-summary-2026-10-07.md).
 
 **Latest release — 6 October 2026:** Additional paid cashback for the same card/month now requires confirmation and preserves all other transaction statuses. Every paid entry stays visible and counts in totals. API, daily worker and frontend deployed after a fresh 627-record backup, recovery restoration and rollback rehearsal, 847 tests and hosted/browser checks. See [release evidence and rollback](docs/deployment-additional-cashback-2026-10-06.md).
