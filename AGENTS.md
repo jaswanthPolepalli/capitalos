@@ -14,3 +14,9 @@ Both release gates are mandatory:
 2. **Rollback readiness:** preserve the previous deployed build and verify that it can be redeployed with its required runtime/configuration and compatible schema. Document the exact rollback commands and smoke checks before deployment. If rollback readiness cannot be verified, stop the deployment.
 
 Code rollback does not automatically restore data. Any data recovery must preserve or reconcile transactions recorded after the backup.
+
+## Push code after every successful deployment
+
+After every successful Development or Production deployment and passing hosted smoke checks, commit and push the deployed source, relevant tests, non-secret configuration and release documentation to `main` in `https://github.com/jaswanthPolepalli/capitalos.git`. Follow the [post-deployment Git sync](DEPLOYMENT.md#post-deployment-git-sync) procedure and verify the release commit exists on the remote before reporting the release workflow complete. This push is part of the authorized deployment workflow and does not require separate confirmation.
+
+Never commit credentials, private business data, backups or generated local financial reports. If authentication or push fails, report the deployment outcome and pending Git sync separately; do not claim the code was pushed.

@@ -61,6 +61,17 @@ For each release:
 
 The older per-release `*-Check` projects are historical test environments. Consolidation or deletion requires checking their contents and preserving required recovery evidence first; this policy update does not delete, rename or reset any hosted project.
 
+## Post-deployment Git sync
+
+After every successful Development or Production deployment, including frontend-only, backend-only, hotfix and manual/CI releases, push the deployed code to **`main` in `https://github.com/jaswanthPolepalli/capitalos.git`**. This is a required part of the deployment workflow and is already authorized; no separate push confirmation is needed.
+
+1. Confirm hosted verification and smoke checks pass. Record the target environment, deployed version, validation results and backup/rollback evidence references in the release documentation.
+2. Review and commit the exact deployed source, relevant tests, dependency lockfiles, non-secret configuration and release documentation. Do not include unrelated unfinished changes, credentials, private business data, backup archives or generated local financial reports. If the deployed source is already committed, preserve that commit and commit only any remaining release documentation.
+3. Verify the destination remote, fetch its current state and push the release commits to `main`. Preserve remote changes; never force-push to bypass divergence. If reconciliation changes deployed source, validate it and clearly distinguish those changes from the version actually deployed.
+4. Verify the release commits are present in remote `main` and report their GitHub links. A push-triggered validation workflow does not authorize another hosted deployment without the mandatory backup gate.
+
+If authentication, repository permissions or a push conflict blocks synchronization, report that deployment succeeded but Git sync is pending, including the local commit and blocker. Do not report the full release workflow complete until the remote contains the release commits. A Git push does not replace the backup and rollback gates.
+
 ## Development schema provisioned — 18 September 2026
 
 Used the existing documented Catalyst OAuth connection and REST API to create the three additive tables in Development. A separate `schema:operations -- --check` passed after creation; metadata inspection confirmed required columns and unique keys. No existing business records were changed. No application deployment was performed in this step. Hosted function access and table permissions still need verification during the staged release.
