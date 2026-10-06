@@ -40,9 +40,10 @@ export function CashbackModal({ allocation, onClose }: { allocation: AllocationS
         <div className="modal__footer"><button className="button button--secondary" onClick={onClose}>Done</button></div>
       </div> : <form className="modal__body" onSubmit={save}>
         <p><strong>{allocation.partner?.name}</strong> · {allocation.creditCard?.cardName || 'Card'}<br />Contribution: {allocation.receivedDate} · ₹{allocation.amountRupees.toLocaleString('en-IN')}</p>
-        <p className="form-hint">Additional to regular profit. Only the first transaction on each card per calendar month is eligible.</p>
+        <p className="form-hint">Additional to regular profit. Choose one transaction on this card per calendar month by marking it unpaid or paid. Other transactions will show Not applicable.</p>
+        {allocation.cashbackSelectedAllocationId && allocation.cashbackSelectedAllocationId !== allocation.id && <p className="form-hint">{allocation.cashbackSelectionStatus === 'paid' ? 'Cashback is already paid on the linked transaction. Correct that payment before changing the selection.' : 'Marking this transaction unpaid will move the cashback selection here.'}</p>}
         <div className="form-field"><label className="form-label" htmlFor="cashback-status">Cashback status</label><select id="cashback-status" className="form-input" value={status} onChange={e => setStatus(e.target.value as CashbackStatus)} disabled={saving}>
-          <option value="review">Needs review</option><option value="unpaid">Not paid</option><option value="paid">Paid to partner</option><option value="not_applicable">Not applicable</option>
+          <option value="review">Needs review</option><option value="unpaid">Cashback unpaid</option><option value="paid">Paid to partner</option><option value="not_applicable">Not applicable</option>
         </select></div>
         {status === 'paid' && <>
           <div className="form-field"><label className="form-label" htmlFor="cashback-amount">Cashback amount (₹)</label><input id="cashback-amount" className="form-input" type="number" inputMode="numeric" min="1" step="1" required={!historical} value={amount} onChange={e => setAmount(e.target.value)} disabled={saving} /></div>

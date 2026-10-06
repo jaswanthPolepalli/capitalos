@@ -1,4 +1,4 @@
-import { validateCashback, monthlyCashback } from '../../../functions/capitalos-api/cashback.mjs';
+import { prepareCashback, monthlyCashback } from '../../../functions/capitalos-api/cashback.mjs';
 /**
  * mockFetch — intercepts all /server/capitalos-api/* fetch calls in dev mode.
  *
@@ -265,7 +265,7 @@ async function mockFetch(
     if (!row || state(table, row).deleted) return notFound('Active contribution not found');
     try {
       const body = JSON.parse(String(init?.body || '{}'));
-      const cashback = validateCashback(body, monthlyCashback(tableData.filter(r => !state(table, r).deleted) as unknown as CapitalAllocation[]).find(a => a.id === id)!, businessToday());
+      const cashback = prepareCashback(body, monthlyCashback(tableData.filter(r => !state(table, r).deleted) as unknown as CapitalAllocation[]).find(a => a.id === id)!, businessToday());
       const previous = (row as unknown as CapitalAllocation).cashback;
       cashback.updatedAt = new Date().toISOString();
       if (cashback.status === 'paid') cashback.createdAt = previous?.createdAt || cashback.updatedAt;
@@ -281,7 +281,7 @@ async function mockFetch(
     const body = init?.body ? (JSON.parse(init.body as string) as Record<string, unknown>) : {};
     const newRow: Record<string, unknown> = {
       ...body,
-      ...(table === "allocations" ? { cashback: { status: body["creditCardId"] ? "unpaid" : "not_applicable", notes: "" } } : {}),
+      ...(table === "allocations" ? { cashback: { status: body["creditCardId"] ? "review" : "not_applicable", notes: "" } } : {}),
       id: nextMockId(),
       createdAt: new Date().toISOString(),
     };

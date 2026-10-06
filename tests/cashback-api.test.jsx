@@ -6,11 +6,11 @@ import { buildProfitPaymentWhatsAppLink } from '../client/src/lib/whatsapp';
 function seed() { const data = baseData(); data.COS_Allocations[0].credit_card_id = 'c'; return data; }
 const payment = { status: 'paid', amountRupees: 500, paidDate: '2026-09-01', notes: 'Historical cashback' };
 describe('independent cashback settlements', () => {
-  it('leaves legacy card transactions for review and initializes new card transactions as unpaid', async () => {
+  it('leaves legacy card transactions for review and initializes new card transactions for review', async () => {
     const h = createApiHarness(seed());
     expect(cashbackStatus((await h.request('GET', 'allocations')).data[0])).toBe('review');
     const result = await h.request('POST', 'allocations', { partnerId: 'p', amountRupees: 10000, profitPercent: 3, receivedDate: '2026-09-01', creditCardId: 'c' });
-    expect(result.data.cashback.status).toBe('unpaid');
+    expect(result.data.cashback.status).toBe('review');
   });
   it('updates a single payment after full capital return, preserving regular profit and principal', async () => {
     const data = seed(); data.COS_Returns[0].amount_rupees = 10000;
@@ -72,24 +72,30 @@ it('accepts an unknown historical cashback amount, preserves paid status, and su
   expect((await h.request('GET', 'allocations')).data[0].cashback.amountRupees).toBe(900);
 });
 
-it('automatically excludes repeat transactions, rejects settlement, and recalculates after a date edit', async () => {
+it('allows a later transaction to be selected, moves unpaid selection, and clears it without reviving old choices', async () => {
   const h = createApiHarness(seed());
-  const input = { partnerId: 'p', amountRupees: 10000, profitPercent: 3, receivedDate: '2026-01-02', creditCardId: 'c' };
-  const repeat = (await h.request('POST', 'allocations', input)).data;
-  expect(cashbackStatus(repeat)).toBe('not_first_transaction');
-  expect(cashbackStatus((await h.request('GET', 'allocations')).data.find(a => a.id === repeat.id))).toBe('not_first_transaction');
-  expect((await h.request('PATCH', `allocations/${repeat.id}/cashback`, payment)).status).toBe('error');
-  await h.request('PATCH', `allocations/${repeat.id}`, { receivedDate: '2026-02-01' });
-  expect(cashbackStatus((await h.request('GET', 'allocations')).data.find(a => a.id === repeat.id))).toBe('unpaid');
-  await h.request('PATCH', `allocations/${repeat.id}`, { receivedDate: '2025-12-31' });
-  expect(cashbackStatus((await h.request('GET', 'allocations')).data.find(a => a.id === repeat.id))).toBe('unpaid');
+  const later = (await h.request('POST', 'allocations', { partnerId: 'p', amountRupees: 10000, profitPercent: 3, receivedDate: '2026-01-02', creditCardId: 'c' })).data;
+  const status = async () => Object.fromEntries((await h.request('GET', 'allocations')).data.map(a => [a.id, cashbackStatus(a)]));
+  expect(await status()).toEqual({ a: 'review', [later.id]: 'review' });
+  expect((await h.request('PATCH', `allocations/${later.id}/cashback`, {status:'unpaid'})).status).toBe('success');
+  expect(await status()).toEqual({ a: 'not_applicable', [later.id]: 'unpaid' });
+  const first = (await h.request('GET', 'allocations')).data.find(a => a.id === 'a');
+  expect(first.cashbackSelectedAllocationId).toBe(later.id);
+  await h.request('PATCH', 'allocations/a/cashback', {status:'unpaid'});
+  expect(await status()).toEqual({ a: 'unpaid', [later.id]: 'not_applicable' });
+  await h.request('PATCH', 'allocations/a/cashback', {status:'review'});
+  expect(await status()).toEqual({ a: 'review', [later.id]: 'review' });
+  await h.request('PATCH', `allocations/${later.id}/cashback`, payment);
+  expect(await status()).toEqual({ a: 'not_applicable', [later.id]: 'paid' });
 });
 
-it('does not email or record cashback for a repeat transaction even when email is requested', async () => {
+it('does not replace a paid selection or send a second payment email', async () => {
   const data = seed(); data.COS_Partners[0].email = 'partner@example.test';
-  data.COS_Allocations.push({ ...data.COS_Allocations[0], ROWID: 'repeat', received_date: '2026-01-02' });
+  data.COS_Allocations[0].cashback_data = JSON.stringify(payment);
+  data.COS_Allocations.push({ ...data.COS_Allocations[0], ROWID:'later', received_date:'2026-01-02', cashback_data: undefined });
   const sendMail = vi.fn(); const h = createApiHarness(data, undefined, sendMail);
-  expect((await h.request('PATCH', 'allocations/repeat/cashback', { ...payment, sendEmail: true })).status).toBe('error');
+  const result = await h.request('PATCH', 'allocations/later/cashback', {...payment, sendEmail:true});
+  expect(result.status).toBe('error'); expect(result.message).toContain('already paid');
   expect(sendMail).not.toHaveBeenCalled();
   expect(h.db.COS_Allocations[1].cashback_data).toBeUndefined();
 });

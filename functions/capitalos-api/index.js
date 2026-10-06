@@ -27,7 +27,7 @@
 
 const catalyst = require("zcatalyst-sdk-node");
 const persistence = require("./persistence.js");
-const { validateCashback, monthlyCashback } = require("./cashback.mjs");
+const { prepareCashback, monthlyCashback } = require("./cashback.mjs");
 const nodemailer = require("nodemailer");
 const groupPayments = require('./group-payments.js');
 const groupPaymentEmail = require('./group-payment-email.js');
@@ -643,7 +643,7 @@ module.exports = async function(req, res) {
           return_date: body.returnDate || null,
           credit_card_id: body.creditCardId ? String(body.creditCardId) : null,
           notes: String(body.notes || "").trim(),
-          cashback_data: JSON.stringify({ status: body.creditCardId ? 'unpaid' : 'not_applicable', notes: '' }),
+          cashback_data: JSON.stringify({ status: body.creditCardId ? 'review' : 'not_applicable', notes: '' }),
         });
         var mappedAlloc = monthlyCashback((await fetchAllRows(req, TABLES.ALLOCATIONS)).filter(r => !isDeleted(r.notes)).map(mapAllocation)).find(a => a.id === String(inserted.ROWID));
         // Fire-and-forget email — does not block the response
@@ -667,11 +667,8 @@ module.exports = async function(req, res) {
       if (visibleRow('allocations', row, context).deleted) return badRequest(res, 'Restore this contribution and its partner before editing cashback.');
       const allocation = monthlyCashback(context.allocations.filter(r => !visibleRow('allocations', r, context).deleted).map(mapAllocation)).find(a => a.id === String(row.ROWID));
       let cashback;
-      try { cashback = validateCashback(body, allocation, new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })); }
+      try { cashback = prepareCashback(body, allocation, new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })); }
       catch (error) { return badRequest(res, error.message); }
-      const now = new Date().toISOString();
-      cashback.updatedAt = now;
-      if (cashback.status === 'paid') cashback.createdAt = allocation.cashback?.createdAt || now;
       const updated = await updateRowById(req, TABLES.ALLOCATIONS, allocation.id, { cashback_data: JSON.stringify(cashback) });
       if (cashback.status === 'paid' && cashback.amountRupees != null && body.sendEmail === true) {
         sendPartnerEmail(req, allocation.partnerId, 'Cashback Sharing — CapitalOS',

@@ -28,6 +28,9 @@ export interface Partner {
 export interface CapitalAllocation {
   cashback?: Cashback;
   cashbackEligibility?: string;
+  cashbackSelectedAllocationId?: string | null;
+  cashbackSelectionStatus?: string | null;
+  cashbackSelectionUpdatedAt?: string | null;
   combination?: Combination;
   id: string;
   partnerId: string;

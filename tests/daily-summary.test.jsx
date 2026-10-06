@@ -29,7 +29,7 @@ describe('daily summary balances and scheduling', () => {
   });
   it('groups outstanding capital by card, preserves profit and separates original cashback entries', () => {
     const s = seed();
-    s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'b', amount_rupees: 20000, received_date: '2026-10-06', return_date: '2026-11-01', cashback_data: JSON.stringify({ status: 'unpaid' }) });
+    s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'b', amount_rupees: 20000, received_date: '2026-10-06', return_date: '2026-11-01', cashback_data: JSON.stringify({ status: 'unpaid', updatedAt: '2026-10-06T00:00:00Z' }) });
     const report = buildDailySummary(dataset(s), window);
     expect(report.rows).toHaveLength(1);
     expect(report.rows[0]).toMatchObject({ amount: 29000, profit: 600, due: ['2026-11-01', '2026-12-01'], last: '2026-10-06' });
@@ -143,18 +143,18 @@ describe('daily email delivery', () => {
 
 it('omits repeat card transactions from cashback follow-up without dropping capital', () => {
   const s = seed();
-  s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'repeat', received_date: '2026-01-02', cashback_data: JSON.stringify({ status: 'unpaid' }) });
+  s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'repeat', received_date: '2026-01-02', cashback_data: JSON.stringify({ status: 'unpaid', updatedAt: '2026-10-06T00:00:00Z' }) });
   const report = buildDailySummary(dataset(s), window);
   expect(report.cb).toHaveLength(1);
-  expect(report.cb[0].date).toBe('2026-01-01');
+  expect(report.cb[0].date).toBe('2026-01-02');
   expect(report.rows[0].amount).toBe(19000);
 });
 
-it('uses original creation time for same-day imported transactions in email follow-up', () => {
+it('keeps all unselected same-day transactions in review regardless of creation order', () => {
   const s = seed();
   Object.assign(s.COS_Allocations[0], { CREATEDTIME: '2026-09-01T00:00:00Z', source_created_time: '2026-01-01T02:00:00Z' });
   s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'earlier', amount_rupees: 12000, CREATEDTIME: '2026-09-02T00:00:00Z', source_created_time: '2026-01-01T01:00:00Z' });
   const report = buildDailySummary(dataset(s), window);
-  expect(report.cb).toHaveLength(1);
-  expect(report.cb[0].amount).toBe(12000);
+  expect(report.cb).toHaveLength(2);
+  expect(report.cb.every(row => row.status === 'review')).toBe(true);
 });

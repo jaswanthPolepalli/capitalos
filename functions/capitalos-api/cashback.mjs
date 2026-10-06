@@ -1,28 +1,53 @@
-/** First original transaction per card and calendar month, independent of profit.
- * Recompute from active history so backdates, edits, deletes and restores stay correct.
- * Recorded payments are retained for ledger/statement totals even if eligibility changes.
+/** Manual cashback selection per card/calendar month. Financial history is never rewritten.
+ * A selection decision lives on one allocation, so selecting/clearing needs one audited write.
+ * The latest decision supersedes prior unpaid choices, including after clearing a selection.
  */
 export function monthlyCashback(allocations) {
-  const first = new Map();
+  const groups = new Map();
   const key = a => JSON.stringify([a.creditCardId, a.receivedDate.slice(0, 7)]);
-  const compare = (a, b) => a.receivedDate.localeCompare(b.receivedDate)
-    || String(a.createdAt || '').localeCompare(String(b.createdAt || ''))
-    || String(a.id).localeCompare(String(b.id), 'en', { numeric: true });
+  const newest = (a, b) => String(b.cashback?.selectionUpdatedAt || b.cashback?.updatedAt || '').localeCompare(String(a.cashback?.selectionUpdatedAt || a.cashback?.updatedAt || ''))
+    || String(b.id).localeCompare(String(a.id), 'en', { numeric: true });
   for (const a of allocations) {
     if (!a.creditCardId || a.combination) continue;
-    const previous = first.get(key(a));
-    if (!previous || compare(a, previous) < 0) first.set(key(a), a);
+    const group = groups.get(key(a)) || [];
+    group.push(a); groups.set(key(a), group);
   }
-  return allocations.map(a => ({ ...a, cashbackEligibility: a.creditCardId && !a.combination && first.get(key(a)) !== a
-    ? 'not_first_transaction' : 'first_transaction' }));
+  const choices = new Map();
+  for (const [k, group] of groups) {
+    const paid = group.filter(a => a.cashback?.status === 'paid').sort(newest);
+    const decisions = group.filter(a => a.cashback?.selectionUpdatedAt).sort(newest);
+    // Legacy automatic unpaid defaults have no updatedAt and are not manual selections.
+    const legacy = group.filter(a => a.cashback?.status === 'unpaid' && a.cashback.updatedAt).sort(newest);
+    const decision = decisions[0];
+    const selected = paid[0] || (decision ? ['unpaid', 'paid'].includes(decision.cashback.status) ? decision : null : legacy[0]);
+    choices.set(k, { selected, version: decision?.cashback.selectionUpdatedAt });
+  }
+  return allocations.map(a => {
+    const { selected, version } = choices.get(key(a)) || {};
+    const applicable = a.creditCardId && !a.combination;
+    const status = !applicable ? 'not_applicable' : selected ? selected.id === a.id ? selected.cashback.status : 'not_applicable'
+      : a.cashback?.status === 'not_applicable' ? 'not_applicable' : 'review';
+    return { ...a, cashbackEligibility: status, cashbackSelectedAllocationId: selected?.id || null,
+      cashbackSelectionStatus: selected?.cashback.status || null, cashbackSelectionUpdatedAt: version || null };
+  });
 }
 export function cashbackStatus(allocation) {
-  if (allocation.cashbackEligibility === 'not_first_transaction') return 'not_first_transaction';
+  if (['review', 'unpaid', 'paid', 'not_applicable'].includes(allocation.cashbackEligibility)) return allocation.cashbackEligibility;
   return allocation.cashback?.status ?? (allocation.creditCardId && !allocation.combination ? 'review' : 'not_applicable');
+}
+/** Metadata is generated server-side; clients cannot choose ordering or forge selection. */
+export function prepareCashback(input, allocation, today, now = new Date().toISOString()) {
+  const cashback = validateCashback(input, allocation, today);
+  cashback.updatedAt = now;
+  if (cashback.status === 'paid') cashback.createdAt = allocation.cashback?.createdAt || now;
+  if (['unpaid', 'paid'].includes(cashback.status) || !allocation.cashbackSelectedAllocationId || allocation.cashbackSelectedAllocationId === allocation.id) {
+    cashback.selectionUpdatedAt = new Date(Math.max(Date.parse(now), Date.parse(allocation.cashbackSelectionUpdatedAt || '') + 1 || 0)).toISOString();
+  }
+  return cashback;
 }
 export function validateCashback(input, allocation, today) {
   if (!allocation.creditCardId || allocation.combination) throw new Error('Cashback belongs to an original card contribution.');
-  if (cashbackStatus(allocation) === 'not_first_transaction') throw new Error('Cashback is only available for the first transaction on this card each month.');
+  if (['unpaid', 'paid'].includes(input.status) && allocation.cashbackSelectedAllocationId && allocation.cashbackSelectedAllocationId !== allocation.id && allocation.cashbackSelectionStatus === 'paid' && allocation.cashback?.status !== 'paid') throw new Error('Cashback is already paid on another transaction for this card and month. Correct that payment before selecting a different transaction.');
   if (!['review', 'unpaid', 'paid', 'not_applicable'].includes(input.status)) throw new Error('Choose a valid cashback status.');
   const notes = String(input.notes || '').trim();
   if (notes.length > 2000) throw new Error('Cashback notes must be 2000 characters or fewer.');
