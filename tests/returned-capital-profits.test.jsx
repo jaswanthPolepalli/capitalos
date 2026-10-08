@@ -1,3 +1,4 @@
+import { splitProfit } from '../functions/capitalos-api/profit-sharing.mjs';
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -25,6 +26,7 @@ beforeEach(async () => {
     let result = data[resource] ?? [];
     if (options?.method === 'POST') {
       result = { ...JSON.parse(options.body), id: String(data[resource].length + 1) };
+      if (resource === 'profit-records') Object.assign(result, splitProfit(result.amountRupees));
       data[resource].push(result);
     }
     return new Response(JSON.stringify({ status: 'success', data: result }));
@@ -47,9 +49,10 @@ async function chooseReturned(user) {
 it('records profit after full capital return and retains it in paid history and ledger after reload', async () => {
   const user = await open();
   await chooseReturned(user);
-  expect(screen.getByLabelText('Amount paid (₹) *').value).toBe('6000');
+  expect(screen.getByLabelText('Partner + CFO amount (₹) *').value).toBe('8400');
   expect(screen.getByRole('checkbox', { name: /Principal will recur/ }).disabled).toBe(true);
   await user.click(screen.getByRole('button', { name: 'Record Payment' }));
+  await user.click(screen.getByRole('button', { name: 'Confirm payment' }));
   expect(await screen.findByText('Payment Recorded')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Done' }));
   await act(async () => { await store.loadAll(); });
@@ -64,27 +67,31 @@ it('requires an explicit remaining balance when unknown and keeps that balance p
   await store.loadAll();
   const user = await open();
   await chooseReturned(user);
-  await user.type(screen.getByLabelText('Amount paid (₹) *'), '2000');
+  await user.type(screen.getByLabelText('Partner + CFO amount (₹) *'), '2800');
   await user.click(screen.getByRole('checkbox', { name: /This is a partial payment/ }));
   expect(screen.queryByLabelText(/Or remaining % rate/)).toBeNull();
   await user.click(screen.getByRole('button', { name: 'Record Partial Payment' }));
+  if (screen.queryByRole('button', { name: 'Confirm payment' })) await user.click(screen.getByRole('button', { name: 'Confirm payment' }));
   expect(screen.getByText('Enter the profit amount still owed after this payment.')).toBeTruthy();
   expect(data['profit-records']).toHaveLength(0);
-  await user.type(screen.getByLabelText(/Remaining amount/), '4000');
+  await user.type(screen.getByLabelText(/Partner amount still owed/), '4000');
   await user.click(screen.getByRole('button', { name: 'Record Partial Payment' }));
+  if (screen.queryByRole('button', { name: 'Confirm payment' })) await user.click(screen.getByRole('button', { name: 'Confirm payment' }));
   await user.click(await screen.findByRole('button', { name: 'Done' }));
   await act(async () => { await store.loadAll(); });
   expect(store.getAllocationSummaries()[0].profitPending).toBe(4000);
   await user.click(screen.getAllByRole('button', { name: 'Pay ₹4,000 more' })[0]);
-  await user.clear(screen.getByLabelText('Amount paid (₹) *'));
-  await user.type(screen.getByLabelText('Amount paid (₹) *'), '1000');
+  await user.clear(screen.getByLabelText('Partner + CFO amount (₹) *'));
+  await user.type(screen.getByLabelText('Partner + CFO amount (₹) *'), '1400');
   await user.click(screen.getByRole('checkbox', { name: /This is a partial payment/ }));
   await user.click(screen.getByRole('button', { name: 'Record Partial Payment' }));
+  if (screen.queryByRole('button', { name: 'Confirm payment' })) await user.click(screen.getByRole('button', { name: 'Confirm payment' }));
   await user.click(await screen.findByRole('button', { name: 'Done' }));
   await act(async () => { await store.loadAll(); });
   expect(store.getAllocationSummaries()[0].profitPending).toBe(3000);
   await user.click(screen.getAllByRole('button', { name: 'Pay ₹3,000 more' })[0]);
   await user.click(screen.getByRole('button', { name: 'Record Payment' }));
+  await user.click(screen.getByRole('button', { name: 'Confirm payment' }));
   await user.click(await screen.findByRole('button', { name: 'Done' }));
   expect(store.getAllocationSummaries()[0]).toMatchObject({ profitPending: 0, totalProfitPaid: 6000, capitalOutstanding: 0 });
 });
@@ -96,11 +103,12 @@ it('shows full unpaid profit after a partial capital return and only subtracts p
   const user = await open();
   expect(store.getAllocationSummaries()[0]).toMatchObject({ capitalOutstanding: 16000, currentCycleProfit: 5355, profitPending: 5355, expectedMonthlyProfit: 480 });
   await user.click(screen.getAllByRole('button', { name: 'Pay ₹5,355' })[0]);
-  expect(screen.getByLabelText('Amount paid (₹) *').value).toBe('5355');
-  await user.clear(screen.getByLabelText('Amount paid (₹) *'));
-  await user.type(screen.getByLabelText('Amount paid (₹) *'), '1000');
+  expect(screen.getByLabelText('Partner + CFO amount (₹) *').value).toBe('7497');
+  await user.clear(screen.getByLabelText('Partner + CFO amount (₹) *'));
+  await user.type(screen.getByLabelText('Partner + CFO amount (₹) *'), '1400');
   await user.click(screen.getByRole('checkbox', { name: /This is a partial payment/ }));
   await user.click(screen.getByRole('button', { name: 'Record Partial Payment' }));
+  if (screen.queryByRole('button', { name: 'Confirm payment' })) await user.click(screen.getByRole('button', { name: 'Confirm payment' }));
   await user.click(await screen.findByRole('button', { name: 'Done' }));
   await act(async () => { await store.loadAll(); });
   expect(store.getAllocationSummaries()[0]).toMatchObject({ capitalOutstanding: 16000, totalProfitPaid: 1000, profitPending: 4355 });

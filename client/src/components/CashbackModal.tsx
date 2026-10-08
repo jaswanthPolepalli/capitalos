@@ -38,6 +38,7 @@ export function CashbackModal({ allocation, onClose }: { allocation: AllocationS
         {saved.status === 'paid' && saved.amountRupees != null && <a className="button button--primary" target="_blank" rel="noopener noreferrer" href={buildProfitPaymentWhatsAppLink({
           kind: 'cashback', partnerName: allocation.partner?.name || 'Partner', partnerPhone: allocation.partner?.phone ?? null,
           amountRupees: saved.amountRupees, paidDate: saved.paidDate, fundingSource: 'card', cardName: allocation.creditCard?.cardName ?? null,
+          contributionAmountRupees: allocation.amountRupees,
           amountGivenDate: allocation.receivedDate, capitalOutstanding: allocation.capitalOutstanding,
           profitPercent: Math.round(saved.amountRupees / allocation.amountRupees * 10000) / 100,
         })}>Share on WhatsApp</a>}

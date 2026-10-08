@@ -1,3 +1,4 @@
+const { profitNotes } = require('./profit-sharing.mjs');
 'use strict';
 const { randomUUID, createHash } = require('node:crypto');
 const { preparePaymentGroup, paymentNotes } = require('./payment-groups.mjs');
@@ -23,7 +24,7 @@ module.exports = async function groupPayments(input, deps) {
         if (!item.recordId) return item;
         const record = records.find(r => r.id === item.recordId);
         const original = input.entries.find(e => e.allocationId === item.allocationId);
-        if (!record || record.paymentGroupId !== input.groupId || record.amountRupees !== original.amountRupees || (record.paidDate || record.returnedDate) !== input.date) return { allocationId: item.allocationId, status: 'unconfirmed' };
+        if (!record || record.paymentGroupId !== input.groupId || (record.combinedAmountRupees ?? record.amountRupees) !== original.amountRupees || (record.partnerAmountRupees ?? null) !== (original.partnerAmountRupees ?? null) || Boolean(record.noCfoSplit) !== Boolean(original.noCfoSplit) || (record.partnerProfitPercent ?? null) !== (original.partnerProfitPercent ?? null) || (record.paidDate || record.returnedDate) !== input.date) return { allocationId: item.allocationId, status: 'unconfirmed' };
         return { allocationId: item.allocationId, status: 'saved', record };
       });
       return { groupId: input.groupId, complete: results.every(r => r.status === 'saved'), results };
@@ -48,7 +49,7 @@ module.exports = async function groupPayments(input, deps) {
     try {
       const record = map(await insert({ allocation_id: entry.allocationId, partner_id: entry.partnerId,
         amount_rupees: entry.amountRupees, ...(input.kind === 'profit' ? { paid_date: entry.paidDate } : { returned_date: entry.returnedDate }),
-        notes: paymentNotes(entry.notes, input.groupId) }));
+        notes: paymentNotes(input.kind === 'profit' ? profitNotes(entry.notes, entry.combinedAmountRupees, entry.partnerProfitPercent, entry.profitCapitalRupees, entry.noCfoSplit, entry.partnerAmountRupees) : entry.notes, input.groupId) }));
       results.push({ allocationId: entry.allocationId, status: 'saved', record });
     } catch {
       // Even a rejected datastore response may have committed. Retain the claim

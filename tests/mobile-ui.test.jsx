@@ -29,7 +29,7 @@ it('allows deselecting and selecting all payments outside the hidden table heade
   expect(screen.getByRole('button', { name: /Review 0 payments/ }).disabled).toBe(true);
   await user.click(screen.getByRole('button', { name: 'Select all' }));
   await user.click(screen.getByRole('button', { name: /Review 1 payment/ }));
-  expect(screen.getByLabelText('Amount (₹) *').value).toBe('300');
+  expect(screen.getByLabelText('Partner + CFO amount (₹) *').value).toBe('420');
 });
 it('gives bulk selection an identifiable pressed state and names financial values', async () => {
   const user = mount(<BulkPaymentPage />);

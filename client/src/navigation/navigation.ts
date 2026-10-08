@@ -9,6 +9,7 @@ import {
   Link2,
   Settings,
   TrendingUp,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,6 +51,13 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Profits",
     description: "Profit obligations and payments, by month",
     icon: TrendingUp,
+  },
+  {
+    path: "/cfo-share",
+    label: "CFO Share",
+    shortLabel: "CFO Share",
+    description: "CFO profit allocations by transaction",
+    icon: Wallet,
   },
   {
     path: "/return-obligations",

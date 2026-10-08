@@ -82,7 +82,7 @@ function buildDailySummary(data, window = dailyWindow()) {
   }
   const rows = [...groups.values()].filter(row => row.amount > 0).map(row => ({ ...row, due: [...new Set(row.due)].sort((a, b) => (a || '9999').localeCompare(b || '9999')) }));
   rows.sort((a, b) => (a.due.find(Boolean) || '9999').localeCompare(b.due.find(Boolean) || '9999') || (a.billed ? b.last.localeCompare(a.last) : a.last.localeCompare(b.last)) || a.partner.localeCompare(b.partner) || a.card.localeCompare(b.card));
-  cashbackRows.sort((a, b) => a.partner.localeCompare(b.partner) || a.card.localeCompare(b.card) || a.date.localeCompare(b.date));
+  cashbackRows.sort((a, b) => a.date.localeCompare(b.date) || a.partner.localeCompare(b.partner) || a.card.localeCompare(b.card));
   const cashbacks = allocations.filter(a => a.cashback?.status === 'paid' && a.cashback.paidDate <= window.date);
   const movements = [
     ...allocations.filter(a => !a.combination).map(a => ({ kind: 'additions', date: a.receivedDate, amount: a.amountRupees, createdAt: a.createdAt })),

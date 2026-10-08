@@ -31,6 +31,7 @@ export interface WhatsAppProfitPaymentOptions {
   paidDate: string;          // ISO date
   referenceNumber?: string | null;
   notes?: string | null;
+  contributionAmountRupees?: number | null;
   capitalOutstanding?: number | null;
   profitPercent?: number | null;
   /** ISO date the capital was originally given to the partner */
@@ -84,15 +85,10 @@ export function buildProfitPaymentWhatsAppLink(opts: WhatsAppProfitPaymentOption
     lines.push(`  • Capital outstanding: ${fmtINR(opts.capitalOutstanding)}`);
   }
 
-  // Exact rate derived from the actual amount paid against capital outstanding,
-  // falling back to the allocation's nominal rate when that isn't computable.
-  const exactPercent = opts.capitalOutstanding && opts.capitalOutstanding > 0
-    ? Math.round((opts.amountRupees / opts.capitalOutstanding) * 10000) / 100
-    : null;
-  const displayPercent = exactPercent ?? opts.profitPercent ?? null;
-
-  if (displayPercent != null) {
-    lines.push(`  • Rate: ${displayPercent}%`);
+  // Paid rates use the contribution basis, independent of later capital returns.
+  const capital = opts.contributionAmountRupees ?? opts.capitalOutstanding;
+  if (capital && capital > 0) {
+    lines.push(`  • Rate: ${(opts.amountRupees / capital * 100).toFixed(2)}%`);
   }
 
   if (opts.notes && !opts.notes.includes("WA_CONFIRMED")) {

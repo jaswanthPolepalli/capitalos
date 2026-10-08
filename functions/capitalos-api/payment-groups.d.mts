@@ -6,7 +6,7 @@ export interface PaymentGroupInput {
   date: string;
   reference: string;
   notes: string;
-  entries: { allocationId: string; amountRupees: number; expectedBalance: number; recur: boolean }[];
+  entries: { partnerAmountRupees?: number | null; noCfoSplit?: boolean; partnerProfitPercent?: number | null; allocationId: string; amountRupees: number; expectedBalance: number; recur: boolean }[];
 }
 export interface PaymentGroupResult {
   email?: { status: 'sent' | 'no_email' | 'unconfirmed' | 'incomplete' | 'mock'; recipient?: string };

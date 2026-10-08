@@ -1,3 +1,4 @@
+import { splitProfit } from './profit-sharing.mjs';
 import { latestProfitPayment, recurringProfitAmount } from './profit-cycles.mjs';
 import { firstCombinedProfitDate } from './combinations.mjs';
 
@@ -44,19 +45,21 @@ export function preparePaymentGroup(input, allocations, returns, profits, today)
     const a = allocations.find(a => a.id === entry.allocationId && a.partnerId === input.partnerId);
     if (!a) fail('A selected contribution is no longer available for this partner. Refresh and review.');
     if (!Number.isSafeInteger(entry.amountRupees) || entry.amountRupees <= 0) fail('Enter a positive whole-rupee amount for every selected entry.');
+    const split = input.kind === 'profit' ? splitProfit(entry.amountRupees, entry.partnerProfitPercent, a.amountRupees, entry.noCfoSplit, entry.partnerAmountRupees) : null;
+    const partnerAmount = split?.amountRupees ?? entry.amountRupees;
     if (input.date < a.receivedDate) fail('Payment cannot precede a contribution’s received date.');
     const reserved = allocations.some(parent => parent.combination?.sources.some(s => s.id === a.id));
     const balance = input.kind === 'profit' ? pendingProfit(a, allocations, profits, today, returns)
       : reserved || a.receivedDate > today ? 0 : a.amountRupees - returns.filter(r => r.allocationId === a.id).reduce((sum, r) => sum + r.amountRupees, 0);
     if (entry.expectedBalance !== balance) fail('A selected balance changed. Close this form, refresh, and review the selection again.');
-    if (balance <= 0 || entry.amountRupees > balance) fail(`Payment exceeds the available ${input.kind === 'profit' ? 'profit' : 'capital'} for a selected entry.`);
+    if (balance <= 0 || partnerAmount > balance) fail(`Payment exceeds the available ${input.kind === 'profit' ? 'profit' : 'capital'} for a selected entry.`);
     if (input.kind === 'profit' && profits.some(p => p.allocationId === a.id && p.paidDate > input.date)) fail('Use a date on or after this contribution’s latest profit payment.');
     const outstanding = a.amountRupees - returns.filter(r => r.allocationId === a.id).reduce((sum, r) => sum + r.amountRupees, 0);
     if (entry.recur && (input.kind !== 'profit' || reserved || outstanding <= 0)) fail('Returned or combined source capital cannot recur.');
     const notes = [input.notes.trim(), input.reference.trim() ? `Ref: ${input.reference.trim()}` : '',
-      input.kind === 'profit' && balance > entry.amountRupees ? `Partial payment · Remaining: ₹${(balance - entry.amountRupees).toLocaleString('en-IN')}` : '',
+      input.kind === 'profit' && balance > partnerAmount ? `Partial payment · Remaining: ₹${(balance - partnerAmount).toLocaleString('en-IN')}` : '',
       entry.recur ? 'Capital reinvested' : ''].filter(Boolean).join(' · ');
-    return { allocationId: a.id, partnerId: input.partnerId, amountRupees: entry.amountRupees,
+    return { allocationId: a.id, partnerId: input.partnerId, amountRupees: partnerAmount, ...(split || {}),
       ...(input.kind === 'profit' ? { paidDate: input.date } : { returnedDate: input.date }),
       notes, paymentGroupId: input.groupId };
   });

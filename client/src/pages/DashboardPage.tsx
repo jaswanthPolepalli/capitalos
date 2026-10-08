@@ -1,3 +1,4 @@
+import { monthlyPayout, monthlyRateLabel } from "../lib/profitDisplay";
 import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -43,7 +44,7 @@ function metrics(
     allocations.reduce((sum, a) => sum + a.totalCapitalReturned, 0),
     allocations.reduce((sum, a) => sum + a.capitalOutstanding, 0),
     month === current
-      ? allocations.reduce((sum, a) => sum + a.expectedMonthlyProfit, 0)
+      ? allocations.reduce((sum, a) => sum + monthlyPayout(a, payments, month), 0)
       : month === next
         ? allocations.reduce((sum, a) => sum + a.nextMonthProfit, 0)
         : null,
@@ -265,7 +266,7 @@ export function DashboardPage() {
           <div className="earnings-summary"><div><span>Cashback paid</span><strong>{fmt(totals[6] ?? 0)}</strong></div><div><span>Total profits received</span><strong>{fmt(totals[7] ?? 0)}</strong></div><p className="earnings-note">For {monthLabel(month)} · Regular profit + cashback. Cashback never reduces pending profit. Amounts not recorded are excluded.</p></div>
           <p className="overview-note">
             {month === current
-              ? "Monthly payout is the run rate on active capital. Paid covers this calendar month; pending is the live unpaid cycle balance."
+              ? "Monthly payout is actual profit paid this month plus the live unpaid profit balance. Paid covers this calendar month; pending is the live unpaid cycle balance."
               : month === next
                 ? "Upcoming profit includes contributions marked Principal will recur. Pending is available for the current month only."
                 : "Historical months show recorded payments. Expected and pending balances are unavailable for past months."}{" "}
@@ -414,7 +415,7 @@ export function DashboardPage() {
                                 <span>{sourceLabel(a)}</span>
                                 <small>
                                   {formatDate(a.receivedDate)} ·{" "}
-                                  {a.profitPercent}% p.m.
+                                  {monthlyRateLabel(a, profitRecords, month)}
                                 </small>
                                 <small>
                                   {a.combinedInto

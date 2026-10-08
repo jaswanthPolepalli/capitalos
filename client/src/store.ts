@@ -1,3 +1,5 @@
+import { monthlyPayout } from "./lib/profitDisplay.js";
+import { splitProfit } from '../../functions/capitalos-api/profit-sharing.mjs';
 import { cashbackTotals, monthlyCashback } from '../../functions/capitalos-api/cashback.mjs';
 import type { Cashback } from '../../functions/capitalos-api/cashback.mjs';
 export type { Cashback };
@@ -65,6 +67,12 @@ export interface CapitalReturn {
 }
 
 export interface ProfitRecord {
+  partnerAmountRupees?: number;
+  noCfoSplit?: boolean;
+  partnerProfitPercent?: number;
+  profitCapitalRupees?: number;
+  combinedAmountRupees?: number;
+  cfoShareRupees?: number;
   paymentGroupId?: string;
   id: string;
   allocationId: string;
@@ -519,7 +527,7 @@ export function getPartnerSummaries(): PartnerSummary[] {
     const activeAllocationCount = pa.filter((a) => !a.isFullyReturned).length;
     const totalProfitPaid = pa.reduce((s, a) => s + a.totalProfitPaid, 0);
     const totalProfitPending = pa.reduce((s, a) => s + a.profitPending, 0);
-    const expectedMonthlyProfit = pa.reduce((s, a) => s + a.expectedMonthlyProfit, 0);
+    const expectedMonthlyProfit = pa.reduce((s, a) => s + monthlyPayout(a, profitRecords), 0);
     const returnDates = pa.filter((a) => !a.isFullyReturned && a.returnDate !== null).map((a) => a.returnDate as string).sort();
     const nextReturnDate = returnDates[0] ?? null;
     const hasCreditCards = partnerCards.length > 0;
@@ -555,7 +563,7 @@ export function getPortfolioTotals(): PortfolioTotals {
     cardOutstanding: summaries.filter((a) => !!a.creditCardId).reduce((s, a) => s + a.capitalOutstanding, 0),
     totalProfitPaid: summaries.reduce((s, a) => s + a.totalProfitPaid, 0),
     totalProfitPending: summaries.reduce((s, a) => s + a.profitPending, 0),
-    expectedMonthlyProfit: summaries.reduce((s, a) => s + a.expectedMonthlyProfit, 0),
+    expectedMonthlyProfit: summaries.reduce((s, a) => s + monthlyPayout(a, profitRecords), 0),
     activePartners: new Set(summaries.filter((a) => a.capitalOutstanding > 0).map((a) => a.partnerId)).size,
     allocationCount: summaries.length,
   };
@@ -717,6 +725,10 @@ export async function addCapitalReturn(input: AddCapitalReturnInput): Promise<Ca
 }
 
 export interface AddProfitRecordInput {
+  partnerAmountRupees?: number | null;
+  noCfoSplit?: boolean;
+  partnerProfitPercent?: number | null;
+  /** amountRupees is the combined partner + CFO amount for new payments. */
   allocationId: string;
   partnerId: string;
   amountRupees: number;
@@ -726,7 +738,7 @@ export interface AddProfitRecordInput {
 
 export async function addProfitRecord(input: AddProfitRecordInput): Promise<ProfitRecord> {
   const summary = getAllocationSummaries().find(a => a.id === input.allocationId);
-  if (summary?.combinationReserved && (input.amountRupees > summary.profitPending || input.notes.includes('Capital reinvested'))) throw new Error('Only the remaining original profit can be paid on a combined source.');
+  if (summary?.combinationReserved && (splitProfit(input.amountRupees, input.partnerProfitPercent, summary.amountRupees, input.noCfoSplit, input.partnerAmountRupees).amountRupees > summary.profitPending || input.notes.includes('Capital reinvested'))) throw new Error('Only the remaining original profit can be paid on a combined source.');
   if (summary && input.paidDate < summary.receivedDate) throw new Error('Payment cannot be before the contribution’s effective date.');
   const record = await apiPost<ProfitRecord>("profit-records", input);
   profitRecords = [...profitRecords, record];
@@ -856,6 +868,9 @@ export async function deletePartner(partnerId: string): Promise<DeletePartnerRes
 // ─── Update individual ledger entries ────────────────────────────────────────
 
 export interface UpdateProfitRecordInput {
+  partnerAmountRupees?: number | null;
+  noCfoSplit?: boolean;
+  partnerProfitPercent?: number | null;
   amountRupees?: number;
   paidDate?: string;
   notes?: string;

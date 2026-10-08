@@ -1,3 +1,5 @@
+import { ProfitSplitPreview, profitPreview, profitOptions } from './ProfitSplitPreview';
+import { combinedForPartner } from '../../../functions/capitalos-api/profit-sharing.mjs';
 import { useRef, useState } from 'react';
 import { CheckCircle2, MessageCircle, X } from 'lucide-react';
 import { addPaymentGroup, getAllocations, getCapitalReturns, getProfitRecords, type AllocationSummary, type PaymentGroupInput, type PaymentGroupResult } from '../store';
@@ -18,7 +20,7 @@ export function GroupedPaymentModal({ entries, kind, onClose }: {
 }) {
   // Preserve the reviewed balances and labels as store notifications arrive.
   const [snapshot] = useState(entries);
-  const [rows, setRows] = useState(() => entries.map(a => ({ allocationId: a.id, amount: String(kind === 'profit' ? a.profitPending : a.capitalOutstanding),
+  const [rows, setRows] = useState(() => entries.map(a => ({ customPercent: null as string | null, allocationId: a.id, amount: String(kind === 'profit' ? combinedForPartner(a.profitPending) : a.capitalOutstanding),
     expectedBalance: kind === 'profit' ? a.profitPending : a.capitalOutstanding, recur: kind === 'profit' && !a.combinationReserved && a.capitalOutstanding > 0 && a.isRecurring })));
   const [date, setDate] = useState(businessToday);
   const [reference, setReference] = useState('');
@@ -42,7 +44,7 @@ export function GroupedPaymentModal({ entries, kind, onClose }: {
     if (!request.current) {
       if (!ready) { setError('Refresh records successfully before saving.'); return; }
       const input: PaymentGroupInput = { groupId: crypto.randomUUID(), kind, partnerId: snapshot[0]?.partnerId || '', date, reference, notes,
-        entries: rows.map(row => ({ allocationId: row.allocationId, amountRupees: Number(row.amount), expectedBalance: row.expectedBalance, recur: row.recur })) };
+        entries: rows.map(row => ({ allocationId: row.allocationId, amountRupees: Number(row.amount), ...(kind === 'profit' ? { ...profitOptions(row.customPercent) } : {}), expectedBalance: row.expectedBalance, recur: row.recur })) };
       try { preparePaymentGroup(input, getAllocations(), getCapitalReturns(), getProfitRecords(), businessToday()); }
       catch (e) { setError(e instanceof Error ? e.message : 'Review the selected entries.'); return; }
       request.current = input;
@@ -79,13 +81,14 @@ export function GroupedPaymentModal({ entries, kind, onClose }: {
           </div>
           <div className="group-payment-rows">{rows.map((row, index) => {
             const a = snapshot[index]!;
-            const remaining = Math.max(0, row.expectedBalance - Number(row.amount || 0));
+            const remaining = Math.max(0, row.expectedBalance - (kind === 'profit' ? profitPreview(Number(row.amount), a.amountRupees, row.customPercent).split?.amountRupees ?? 0 : Number(row.amount || 0)));
             return <div className="group-payment-row" key={a.id}>
               <p>{label(a)}</p>
-              <label className="form-label" htmlFor={`group-amount-${a.id}`}>{kind === 'profit' ? 'Profit paid' : 'Capital returned'} — entry {a.id} (₹)</label>
-              <input id={`group-amount-${a.id}`} className="form-input" type="number" min="1" step="1" max={row.expectedBalance} value={row.amount} disabled={locked}
+              <label className="form-label" htmlFor={`group-amount-${a.id}`}>{kind === 'profit' ? 'Partner + CFO amount' : 'Capital returned'} — entry {a.id} (₹)</label>
+              <input id={`group-amount-${a.id}`} className="form-input" type="number" min="1" step="1" max={kind === 'profit' ? combinedForPartner(row.expectedBalance) : row.expectedBalance} value={row.amount} disabled={locked}
                 onChange={e => setRows(rows => rows.map(r => r.allocationId === a.id ? { ...r, amount: e.target.value } : r))} />
-              <p className="form-hint">Due: {fmt(row.expectedBalance)} · Remaining: {fmt(remaining)}{kind === 'profit' && remaining > 0 ? ' (partial payment)' : ''}</p>
+              {kind === 'profit' && <ProfitSplitPreview amount={Number(row.amount)} capital={a.amountRupees} customPercent={row.customPercent} disabled={locked} onPercentChange={value => setRows(rows => rows.map(r => r.allocationId === a.id ? { ...r, customPercent: value } : r))} />}
+              <p className="form-hint">{kind === 'profit' ? 'Partner due' : 'Due'}: {fmt(row.expectedBalance)} · Remaining: {fmt(remaining)}{kind === 'profit' && remaining > 0 ? ' (partial payment)' : ''}</p>
               {kind === 'profit' && !a.combinationReserved && a.capitalOutstanding > 0 && <label className="checkbox-row"><input type="checkbox" checked={row.recur} disabled={locked} onChange={e => setRows(rows => rows.map(r => r.allocationId === a.id ? { ...r, recur: e.target.checked } : r))} />Principal will recur — entry {a.id}</label>}
             </div>;
           })}</div>

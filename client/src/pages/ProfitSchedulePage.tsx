@@ -1,3 +1,4 @@
+import { paidRateLabel } from "../lib/profitDisplay";
 import { EarningsSummary } from '../components/EarningsSummary';
 import {
   CalendarClock,
@@ -370,7 +371,7 @@ export function ProfitSchedulePage() {
                         </Link>
                       </td>
                       <td className="table-cell table-cell--secondary">
-                        {alloc ? `${fmt(alloc.amountRupees)} @ ${alloc.profitPercent}%` : r.allocationId}
+                        {alloc ? `${fmt(alloc.amountRupees)} · ${paidRateLabel(r, alloc)}` : r.allocationId}
                       </td>
                       <td className="table-cell table-cell--secondary">{formatDate(r.paidDate)}</td>
                       <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }}>

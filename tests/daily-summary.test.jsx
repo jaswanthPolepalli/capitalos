@@ -11,6 +11,25 @@ const dataset = s => ({ partners: s.COS_Partners, allocations: s.COS_Allocations
 function seed() { const s = baseData(); s.COS_Allocations[0].credit_card_id = 'c'; s.COS_Allocations[0].notes = 'WA_CONFIRMED'; return s; }
 
 describe('daily summary balances and scheduling', () => {
+  it('sorts cashback follow-up by amount-given date ascending across partners and cards', () => {
+    const s = seed();
+    s.COS_Partners = [{ ROWID: 'z', name: 'Zara', notes: '' }, { ROWID: 'a', name: 'Arun', notes: '' }];
+    s.COS_CreditCards = ['z', 'a', 'b'].map(id => ({ ROWID: id, partner_id: id === 'z' ? 'z' : 'a', card_name: `${id.toUpperCase()} Card`, notes: '' }));
+    s.COS_Allocations = [
+      ['newest', 'a', 'a', '2026-10-05', 'unpaid'],
+      ['oldest', 'z', 'z', '2026-08-01', 'unpaid'],
+      ['same-date-b', 'a', 'b', '2026-09-02', 'review'],
+      ['same-date-a', 'a', 'a', '2026-09-02', 'unpaid'],
+    ].map(([id, partner, card, date, status]) => ({ ...seed().COS_Allocations[0], ROWID: id, partner_id: partner, credit_card_id: card, received_date: date, cashback_data: JSON.stringify({ status }) }));
+    s.COS_Returns = []; s.COS_Profits = [];
+    const report = buildDailySummary(dataset(s), window);
+    expect(report.cb.map(r => [r.date, r.partner, r.card])).toEqual([
+      ['2026-08-01', 'Zara', 'Z Card'],
+      ['2026-09-02', 'Arun', 'A Card'],
+      ['2026-09-02', 'Arun', 'B Card'],
+      ['2026-10-05', 'Arun', 'A Card'],
+    ]);
+  });
   it('uses only WhatsApp-confirmed dates, including mixed and missing dates on one card', () => {
     const s = seed();
     s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'unconfirmed', return_date: '2026-10-01', notes: '' });

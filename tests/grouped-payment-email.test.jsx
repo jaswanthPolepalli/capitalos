@@ -11,7 +11,7 @@ function setup({ fail, sendMail = vi.fn().mockResolvedValue({ accepted: ['partne
 }
 function input(kind = 'profit') {
   return { groupId: '12345678-1234-1234-1234-123456789abc', kind, partnerId: 'p', date: '2026-09-25', reference: 'UTR<&>123', notes: '',
-    entries: ['a', 'b'].map(allocationId => ({ allocationId, amountRupees: kind === 'profit' ? 100 : 1000,
+    entries: ['a', 'b'].map(allocationId => ({ allocationId, amountRupees: kind === 'profit' ? 140 : 1000,
       expectedBalance: kind === 'profit' ? 300 : allocationId === 'a' ? 9000 : 10000, recur: false })) };
 }
 afterEach(() => vi.restoreAllMocks());

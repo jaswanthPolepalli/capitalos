@@ -43,9 +43,9 @@ const today = new Date().toISOString().slice(0, 10);
 type UrgencyLevel = "overdue" | "attention" | "clear";
 
 function getUrgency(ps: ReturnType<typeof import("../useStore").useStore>["partnerSummaries"][number]): UrgencyLevel {
-  // Overdue: has profit pending > 1 month's worth OR past return date
+  // Profit debt carries forward without accumulating extra monthly cycles.
   if (ps.nextReturnDate && ps.nextReturnDate < today) return "overdue";
-  if (ps.totalProfitPending > ps.expectedMonthlyProfit * 1.5) return "overdue";
+
   // Attention: has profit pending or upcoming return date within 7 days
   if (ps.totalProfitPending > 0) return "attention";
   const sevenDaysOut = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
@@ -467,7 +467,7 @@ export function PartnersPage() {
                           {fmt(totalProfitPending)}
                         </>
                       ) : expectedMonthlyProfit > 0 ? (
-                        <span style={{ fontSize: 11 }}>~{fmt(expectedMonthlyProfit)}/mo</span>
+                        <span style={{ fontSize: 11 }}>{fmt(expectedMonthlyProfit)} this month</span>
                       ) : "—"}
                     </td>
                     <td className="table-cell table-cell--secondary" data-label="Next return">

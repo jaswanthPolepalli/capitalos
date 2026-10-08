@@ -1,6 +1,7 @@
+import { ProfitSplitPreview, profitPreview, profitOptions } from './ProfitSplitPreview';
 import { useState } from "react";
 import { Pencil, X } from "lucide-react";
-import { updateProfitRecord, type ProfitRecord } from "../store";
+import { getAllocations, updateProfitRecord, type ProfitRecord } from "../store";
 const fmt = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
 
 function workflowFreeNotes(notes: string): string {
@@ -30,7 +31,9 @@ export function EditProfitPaymentModal({
   expectedMonthlyProfit: number;
   onClose: () => void;
 }) {
-  const [amountStr, setAmountStr] = useState(String(record.amountRupees));
+  const capital = record.profitCapitalRupees ?? getAllocations().find(a => a.id === record.allocationId)?.amountRupees;
+  const [customPercent, setCustomPercent] = useState<string | null>(record.partnerAmountRupees !== undefined ? `amount:${record.partnerAmountRupees}` : record.noCfoSplit ? 'no-cfo' : record.partnerProfitPercent === undefined ? null : String(record.partnerProfitPercent));
+  const [amountStr, setAmountStr] = useState(String(record.combinedAmountRupees ?? record.amountRupees));
   const [paidDate, setPaidDate] = useState(record.paidDate);
   const [notes, setNotes] = useState(() => workflowFreeNotes(record.notes || ""));
   const [isPartial, setIsPartial] = useState(() => (record.notes || "").includes("Partial payment"));
@@ -42,9 +45,12 @@ export function EditProfitPaymentModal({
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
-    const amount = Math.round(Number(amountStr));
-    const remaining = remainingStr.trim() === "" ? Math.max(0, expectedMonthlyProfit - amount) : Math.round(Number(remainingStr));
-    if (!Number.isFinite(amount) || amount <= 0) return setError("Enter a valid amount.");
+    const amount = Number(amountStr);
+    const preview = profitPreview(amount, capital, customPercent);
+    if (record.combinedAmountRupees !== undefined && preview.error) return setError(preview.error);
+    const partnerAmount = record.combinedAmountRupees !== undefined ? preview.split!.amountRupees : amount;
+    const remaining = remainingStr.trim() === "" ? Math.max(0, expectedMonthlyProfit - partnerAmount) : Math.round(Number(remainingStr));
+    if (!Number.isSafeInteger(amount) || amount <= 0) return setError("Enter a valid amount.");
     if (!paidDate) return setError("Payment date is required.");
     if (isPartial && (!Number.isFinite(remaining) || remaining < 0)) return setError("Enter a valid remaining amount.");
 
@@ -57,7 +63,7 @@ export function EditProfitPaymentModal({
 
     setSaving(true);
     try {
-      await updateProfitRecord(record.id, { amountRupees: amount, paidDate, notes: noteParts.join(" · ") });
+      await updateProfitRecord(record.id, { amountRupees: amount, ...(record.combinedAmountRupees !== undefined ? { ...profitOptions(customPercent) } : {}), paidDate, notes: noteParts.join(" · ") });
       onClose();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Unable to save payment. Please try again.");
@@ -76,7 +82,7 @@ export function EditProfitPaymentModal({
         <form className="modal__body" onSubmit={handleSubmit} noValidate>
           <div className="form-row">
             <div className="form-field">
-              <label className="form-label" htmlFor="edit-profit-amount">Amount paid (₹) *</label>
+              <label className="form-label" htmlFor="edit-profit-amount">{record.combinedAmountRupees !== undefined ? 'Partner + CFO amount' : 'Amount paid'} (₹) *</label>
               <input id="edit-profit-amount" className="form-input" type="number" min="1" value={amountStr} onChange={(e) => { setAmountStr(e.target.value); setError(""); }} autoFocus />
             </div>
             <div className="form-field">
@@ -84,6 +90,7 @@ export function EditProfitPaymentModal({
               <input id="edit-profit-date" className="form-input" type="date" value={paidDate} onChange={(e) => { setPaidDate(e.target.value); setError(""); }} />
             </div>
           </div>
+          {record.combinedAmountRupees !== undefined && <ProfitSplitPreview amount={Number(amountStr)} capital={capital} customPercent={customPercent} onPercentChange={setCustomPercent} disabled={saving} />}
           <label className="checkbox-row">
             <input type="checkbox" checked={isPartial} onChange={(e) => setIsPartial(e.target.checked)} />
             <span><strong>This was a partial payment</strong><small>Keep the remaining profit due.</small></span>
@@ -91,7 +98,7 @@ export function EditProfitPaymentModal({
           {isPartial && (
             <div className="form-field" style={{ marginTop: 10 }}>
               <label className="form-label" htmlFor="edit-profit-remaining">Profit still due (₹)</label>
-              <input id="edit-profit-remaining" className="form-input" type="number" min="0" value={remainingStr} onChange={(e) => { setRemainingStr(e.target.value); setRemainingPercent(""); }} placeholder={`Auto: ${fmt(Math.max(0, expectedMonthlyProfit - (Number(amountStr) || 0)))}`} />
+              <input id="edit-profit-remaining" className="form-input" type="number" min="0" value={remainingStr} onChange={(e) => { setRemainingStr(e.target.value); setRemainingPercent(""); }} placeholder={`Auto: ${fmt(Math.max(0, expectedMonthlyProfit - (record.combinedAmountRupees !== undefined && Number.isSafeInteger(Number(amountStr)) && Number(amountStr) > 0 ? profitPreview(Number(amountStr), capital, customPercent).split?.amountRupees ?? 0 : Number(amountStr) || 0)))}`} />
               <label className="form-label" htmlFor="edit-profit-percent">Or remaining profit rate (%)</label>
               <input id="edit-profit-percent" className="form-input" type="number" min="0" max="100" step="0.01" value={remainingPercent} onChange={(e) => { setRemainingPercent(e.target.value); setRemainingStr(""); }} />
               <span className="form-label__optional">Leave both blank to calculate from the expected monthly profit.</span>

@@ -52,6 +52,7 @@ const ReportsPage = lazy(() =>
   import("./pages/ReportsPage").then((m) => ({ default: m.ReportsPage })),
 );
 
+const CFOSharePage = lazy(() => import('./pages/CFOSharePage').then(m => ({ default: m.CFOSharePage })));
 const ActivityPage = lazy(() => import('./pages/ActivityPage').then(m => ({ default: m.ActivityPage })));
 const ImportPage = lazy(() => import('./pages/ImportPage').then(m => ({ default: m.ImportPage })));
 const DueCalendarPage = lazy(() => import('./pages/DueCalendarPage').then(m => ({ default: m.DueCalendarPage })));
@@ -83,6 +84,7 @@ export function AppRoutes() {
           <Route path="/partners/:id" element={<PartnerDetailPage />} />
           <Route path="/partners/:id/statement" element={<PartnerStatementPage />} />
           <Route path="/capital-contributions" element={<CapitalContributionsPage />} />
+          <Route path="/cfo-share" element={<CFOSharePage />} />
           <Route path="/pending-profits" element={<PendingProfitsPage />} />
           <Route path="/return-obligations" element={<ReturnObligationsPage />} />
           <Route path="/ledger" element={<LedgerPage />} />

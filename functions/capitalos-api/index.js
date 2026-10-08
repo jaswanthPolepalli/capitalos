@@ -29,6 +29,7 @@ const catalyst = require("zcatalyst-sdk-node");
 const persistence = require("./persistence.js");
 const { prepareCashback, monthlyCashback } = require("./cashback.mjs");
 const nodemailer = require("nodemailer");
+const { splitProfit, profitMetadata, profitNotes } = require('./profit-sharing.mjs');
 const groupPayments = require('./group-payments.js');
 const groupPaymentEmail = require('./group-payment-email.js');
 const { paymentMetadata, paymentNotes } = require('./payment-groups.mjs');
@@ -117,7 +118,8 @@ async function profitEmail(req, partnerName, payment, allocation, allocations, c
   const today = new Date().toLocaleDateString('en-CA');
   const transferred = allocations.some(parent => parent.receivedDate <= today && parent.combination?.sources.some(source => source.id === allocation.id));
   const outstanding = transferred || allocation.receivedDate > today ? 0 : Math.max(0, allocation.amountRupees - returned);
-  const rate = outstanding > 0 ? Math.round((payment.amountRupees / outstanding) * 10000) / 100 : cashback ? Math.round((payment.amountRupees / allocation.amountRupees) * 10000) / 100 : allocation.profitPercent;
+  const rateCapital = payment.profitCapitalRupees ?? allocation.amountRupees;
+  const rate = rateCapital > 0 ? (payment.amountRupees / rateCapital * 100).toFixed(2) : null;
   let fundingSource = 'Cash';
   if (allocation.creditCardId) {
     const cards = await fetchAllRows(req, TABLES.CREDIT_CARDS);
@@ -135,7 +137,7 @@ async function profitEmail(req, partnerName, payment, allocation, allocations, c
     ['Funding source', fundingSource],
     ['Amount given date', formatDate(allocation.receivedDate)],
     ['Capital outstanding', money(outstanding)],
-    ['Rate', `${rate}%`],
+    ['Rate', rate === null ? 'Unavailable' : `${rate}%`],
   ];
   const portalUrl = `${APP_BASE_URL}/#/p/partner-${encodeURIComponent(payment.partnerId)}`;
   return `
@@ -219,6 +221,11 @@ async function updateRowById(req, tableName, rowId, rowData) {
   if ([TABLES.PROFIT_RECORDS, TABLES.CAPITAL_RETURNS].includes(tableName) && rowData.notes !== undefined) {
     const previous = await getApp(req).datastore().table(tableName).getRow(rowId);
     const { paymentGroupId } = paymentMetadata(previous?.notes);
+    if (tableName === TABLES.PROFIT_RECORDS) {
+      const supplied = profitMetadata(rowData.notes);
+      const metadata = supplied.combinedAmountRupees !== undefined ? supplied : profitMetadata(previous?.notes);
+      rowData = { ...rowData, notes: profitNotes(rowData.notes, metadata.combinedAmountRupees, metadata.partnerProfitPercent, metadata.profitCapitalRupees, metadata.noCfoSplit, metadata.partnerAmountRupees) };
+    }
     if (paymentGroupId) rowData = { ...rowData, notes: paymentNotes(rowData.notes, paymentGroupId) };
   }
   return getRepository(req).update(tableName, rowId, rowData, req.url);
@@ -271,7 +278,8 @@ function mapProfitRecord(row) {
     partnerId: String(row.partner_id || ""),
     amountRupees: Number(row.amount_rupees || 0),
     paidDate: row.paid_date || "",
-    ...paymentMetadata(row.notes || ""),
+    ...paymentMetadata(profitMetadata(row.notes || "").notes),
+    ...Object.fromEntries(Object.entries(profitMetadata(row.notes || "")).filter(([key]) => key !== "notes")),
     createdAt: (row.source_created_time || row.CREATEDTIME) ? new Date(row.source_created_time || row.CREATEDTIME).toISOString() : "",
   };
 }
@@ -424,6 +432,14 @@ module.exports = async function(req, res) {
   var method = req.method || "GET";
 
   try {
+    if (path === 'daily-summary/download' && method === 'POST') {
+      if (process.env.VITE_USE_MOCK === 'true' || process.env.CAPITALOS_MOCK === 'true') return ok(res, { status: 'mock' });
+      const { loadSummaryData, buildDailySummary } = require('./daily-summary.js');
+      const { renderDailySummary } = require('./daily-summary-pdf.js');
+      const summary = buildDailySummary(await loadSummaryData(name => getApp(req).datastore().table(name)));
+      const pdf = await renderDailySummary(summary);
+      return ok(res, { status: 'ready', filename: `CapitalOS-Daily-Summary-${summary.date}.pdf`, contentBase64: pdf.toString('base64') });
+    }
     if (path === 'daily-summary/send' && method === 'POST') {
       const input = await readBody(req);
       // The recipient is fixed server-side; caller-supplied addresses are ignored.
@@ -765,18 +781,19 @@ module.exports = async function(req, res) {
         const allocations = (await fetchAllRows(req, TABLES.ALLOCATIONS)).filter(r => !isDeleted(r.notes)).map(mapAllocation);
         const allocation = allocations.find(a => a.id === String(body.allocationId));
         if (!allocation || allocation.partnerId !== String(body.partnerId)) return badRequest(res, 'Contribution not found for partner.');
+        const split = splitProfit(body.amountRupees, body.partnerProfitPercent, allocation.amountRupees, body.noCfoSplit, body.partnerAmountRupees);
         if (body.paidDate < allocation.receivedDate) return badRequest(res, 'Payment cannot precede the effective date.');
         const source = allocations.flatMap(a => a.combination?.sources || []).find(s => s.id === allocation.id);
         if (source) {
           const paid = (await fetchAllRows(req, TABLES.PROFIT_RECORDS)).filter(r => !isDeleted(r.notes) && String(r.allocation_id) === allocation.id && !source.profitRecordIds.includes(String(r.ROWID))).reduce((s, r) => s + Number(r.amount_rupees), 0);
-          if (Number(body.amountRupees) > source.pending - paid || String(body.notes || '').includes('Capital reinvested')) return badRequest(res, 'Only remaining original profit can be paid on this contribution.');
+          if (split.amountRupees > source.pending - paid || String(body.notes || '').includes('Capital reinvested')) return badRequest(res, 'Only remaining original profit can be paid on this contribution.');
         }
         var inserted = await insertRow(req, TABLES.PROFIT_RECORDS, {
           allocation_id: String(body.allocationId),
           partner_id: String(body.partnerId),
-          amount_rupees: Number(body.amountRupees),
+          amount_rupees: split.amountRupees,
           paid_date: body.paidDate,
-          notes: String(body.notes || "").trim(),
+          notes: profitNotes(String(body.notes || "").trim(), split.combinedAmountRupees, split.partnerProfitPercent, split.profitCapitalRupees, split.noCfoSplit, split.partnerAmountRupees),
         });
         var mappedProfit = mapProfitRecord(inserted);
         sendPartnerEmail(
@@ -793,10 +810,21 @@ module.exports = async function(req, res) {
     var prPatch = path.match(/^profit-records\/([^/?]+)$/);
     if (prPatch && method === "PATCH") {
       var body = await readBody(req);
+      const previous = await getApp(req).datastore().table(TABLES.PROFIT_RECORDS).getRow(prPatch[1]);
+      if (!previous || isDeleted(previous.notes)) return badRequest(res, 'Active profit payment not found.');
+      const prior = profitMetadata(previous.notes);
+      const allocation = await getApp(req).datastore().table(TABLES.ALLOCATIONS).getRow(previous.allocation_id);
+      const noCfoSplit = body.noCfoSplit === undefined ? prior.noCfoSplit : body.noCfoSplit;
+      const directAmount = body.partnerAmountRupees === undefined ? prior.partnerAmountRupees : body.partnerAmountRupees;
+      const rate = body.partnerProfitPercent === undefined ? prior.partnerProfitPercent : body.partnerProfitPercent;
+      const split = prior.combinedAmountRupees !== undefined && (body.amountRupees !== undefined || body.partnerProfitPercent !== undefined || body.noCfoSplit !== undefined || body.partnerAmountRupees !== undefined)
+        ? splitProfit(body.amountRupees ?? prior.combinedAmountRupees, rate, prior.profitCapitalRupees ?? Number(allocation?.amount_rupees), noCfoSplit, directAmount) : null;
+      if (body.amountRupees !== undefined && (!Number.isSafeInteger(body.amountRupees) || body.amountRupees <= 0)) return badRequest(res, 'Enter a positive whole-rupee amount.');
       var patchFields = {};
-      if (body.amountRupees !== undefined) patchFields.amount_rupees = Number(body.amountRupees);
+      if (split || body.amountRupees !== undefined) patchFields.amount_rupees = split ? split.amountRupees : Number(body.amountRupees);
       if (body.paidDate !== undefined) patchFields.paid_date = body.paidDate;
       if (body.notes !== undefined) patchFields.notes = String(body.notes).trim();
+      if (split || body.notes !== undefined) patchFields.notes = profitNotes(body.notes === undefined ? previous.notes : String(body.notes).trim(), split?.combinedAmountRupees ?? prior.combinedAmountRupees, split ? split.partnerProfitPercent : prior.partnerProfitPercent, split ? split.profitCapitalRupees : prior.profitCapitalRupees, split ? split.noCfoSplit : prior.noCfoSplit, split ? split.partnerAmountRupees : prior.partnerAmountRupees);
       var updated = await updateRowById(req, TABLES.PROFIT_RECORDS, prPatch[1], patchFields);
       return ok(res, mapProfitRecord(updated));
     }

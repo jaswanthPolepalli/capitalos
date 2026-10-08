@@ -1,3 +1,5 @@
+import { ProfitSplitPreview, profitPreview, profitOptions } from './ProfitSplitPreview';
+import { combinedForPartner } from '../../../functions/capitalos-api/profit-sharing.mjs';
 /**
  * QuickPayModal — F3: Quick-Pay from Dashboard
  *
@@ -9,7 +11,7 @@ import { CheckCircle2, X } from "lucide-react";
 import { useState } from "react";
 
 import { amountToWords } from "../lib/amountWords";
-import { addCapitalReturn, addProfitRecord } from "../store";
+import { getAllocations, addCapitalReturn, addProfitRecord } from "../store";
 
 export type QuickPayType = "profit" | "capital";
 
@@ -39,9 +41,11 @@ export function QuickPayModal({
   target: QuickPayTarget;
   onClose: () => void;
 }) {
+  const capital = getAllocations().find(a => a.id === target.allocationId)?.amountRupees;
+  const [customPercent, setCustomPercent] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
-    amountStr: String(Math.max(1, Math.round(target.pendingAmount))),
+    amountStr: String(Math.max(1, target.payType === 'profit' ? combinedForPartner(target.pendingAmount) : Math.round(target.pendingAmount))),
     date: today,
     method: "NEFT",
     referenceNumber: "",
@@ -51,11 +55,12 @@ export function QuickPayModal({
   const [saving, setSaving] = useState(false);
 
   const amountNum = Number(form.amountStr);
-  const amountValid = !isNaN(amountNum) && amountNum > 0;
+  const amountValid = Number.isSafeInteger(amountNum) && amountNum > 0;
 
   function validate() {
     const e: Record<string, string> = {};
     if (!form.amountStr || !amountValid) e.amountStr = "Enter a valid amount";
+    if (target.payType === 'profit') { const preview = profitPreview(amountNum, capital, customPercent); if (preview.error) e.submit = preview.error; }
     if (!form.date) e.date = "Required";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -73,6 +78,7 @@ export function QuickPayModal({
           partnerId: target.partnerId,
           amountRupees: Math.round(amountNum),
           paidDate: form.date,
+          ...profitOptions(customPercent),
           notes: notes || "Profit paid",
         });
       } else {
@@ -130,7 +136,7 @@ export function QuickPayModal({
           {/* Amount + Date */}
           <div className="form-row">
             <div className="form-field">
-              <label className="form-label" htmlFor="qp-amt">Amount (₹) *</label>
+              <label className="form-label" htmlFor="qp-amt">{target.payType === 'profit' ? 'Partner + CFO amount' : 'Amount'} (₹) *</label>
               <input
                 id="qp-amt"
                 className={`form-input ${errors.amountStr ? "form-input--error" : ""}`}
@@ -160,6 +166,7 @@ export function QuickPayModal({
             </div>
           </div>
 
+          {target.payType === 'profit' && <ProfitSplitPreview amount={amountNum} capital={capital} customPercent={customPercent} onPercentChange={setCustomPercent} disabled={saving} />}
           {/* Method + Reference */}
           <div className="form-row">
             <div className="form-field">

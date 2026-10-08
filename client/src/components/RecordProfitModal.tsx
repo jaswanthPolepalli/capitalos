@@ -1,7 +1,9 @@
+import { ProfitSplitPreview, profitPreview, profitOptions } from './ProfitSplitPreview';
+import { combinedForPartner } from '../../../functions/capitalos-api/profit-sharing.mjs';
 import { CheckCircle2, MessageCircle, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { buildProfitPaymentWhatsAppLink } from "../lib/whatsapp";
-import { addProfitRecord, updateAllocationReturnDate, type AddProfitRecordInput } from "../store";
+import { getAllocations, addProfitRecord, updateAllocationReturnDate, type AddProfitRecordInput } from "../store";
 
 function fmt(rupees: number): string {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(rupees);
@@ -26,11 +28,16 @@ export function RecordProfitModal({
   amountGivenDate?: string | null;
   onClose: () => void;
 }) {
+  const capital = getAllocations().find(a => a.id === allocationId)?.amountRupees;
+  const [customPercent, setCustomPercent] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const inFlight = useRef(false);
   const today = new Date().toISOString().slice(0, 10);
   const capitalReturned = capitalOutstanding === 0;
   const remainingBasis = pendingAmount > 0 ? pendingAmount : expectedMonthlyProfit;
   const [form, setForm] = useState({
-    amountStr: pendingAmount > 0 ? String(Math.max(1, Math.round(pendingAmount))) : "",
+    amountStr: pendingAmount > 0 ? String(Math.max(1, combinedForPartner(pendingAmount))) : "",
     paidDate: today,
     notes: "",
   });
@@ -51,7 +58,9 @@ export function RecordProfitModal({
   const [remainingPercent, setRemainingPercent] = useState("");
 
   // Derived: compute what remaining will be shown to user
-  const paidAmt = Number(form.amountStr) || 0;
+  const enteredAmount = Number(form.amountStr) || 0;
+  const preview = profitPreview(enteredAmount, capital, customPercent);
+  const paidAmt = preview.split?.amountRupees ?? 0;
 
   const computedRemaining = useMemo(() => {
     if (!isPartial) return 0;
@@ -73,7 +82,8 @@ export function RecordProfitModal({
   function validate() {
     const e: Record<string, string> = {};
     const amt = Number(form.amountStr);
-    if (!form.amountStr || isNaN(amt) || amt <= 0) e.amountStr = "Enter a valid amount";
+    if (!form.amountStr || !Number.isSafeInteger(amt) || amt <= 0) e.amountStr = "Enter a positive whole-rupee amount";
+    if (preview.error) e.submit = preview.error;
     if (!form.paidDate) e.paidDate = "Required";
     if (capitalReturned && isPartial && pendingAmount <= 0 && remainingAmtStr.trim() === "") {
       e.remainingAmtStr = "Enter the profit amount still owed after this payment.";
@@ -90,7 +100,10 @@ export function RecordProfitModal({
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
-    if (!validate()) return;
+    if (inFlight.current || !validate()) return;
+    if (!reviewing) { setReviewing(true); return; }
+    inFlight.current = true;
+    setSaving(true);
 
     // Build notes
     const noteParts: string[] = [];
@@ -114,6 +127,7 @@ export function RecordProfitModal({
       allocationId,
       partnerId,
       amountRupees: Math.round(Number(form.amountStr)),
+      ...profitOptions(customPercent),
       paidDate: form.paidDate,
       notes: noteParts.join(" · "),
     };
@@ -121,17 +135,22 @@ export function RecordProfitModal({
     try {
       await addProfitRecord(input);
     } catch (error) {
+      inFlight.current = false;
+      setSaving(false);
+      setReviewing(false);
       setErrors({ submit: error instanceof Error ? error.message : 'Unable to record payment.' });
       return;
     }
 
     // If reinvesting, also update the allocation's return date
     if (reinvest) {
-      await updateAllocationReturnDate(allocationId, newReturnDate || null);
+      try { await updateAllocationReturnDate(allocationId, newReturnDate || null); }
+      catch { setErrors({ submit: 'Profit saved. The return date could not be updated; edit it separately.' }); }
     }
+    setSaving(false);
 
     // Show WhatsApp share step
-    setSubmittedAmount(Math.round(Number(form.amountStr)));
+    setSubmittedAmount(paidAmt);
     setSubmittedDate(form.paidDate);
     setSubmitted(true);
   }
@@ -148,6 +167,7 @@ export function RecordProfitModal({
       partnerPhone: partnerPhone ?? null,
       amountRupees: submittedAmount,
       paidDate: submittedDate,
+      contributionAmountRupees: capital ?? null,
       capitalOutstanding: capitalOutstanding ?? null,
       profitPercent: profitPercent ?? null,
       fundingSource: fundingSource ?? null,
@@ -180,6 +200,7 @@ export function RecordProfitModal({
               </p>
             </div>
 
+            {errors.submit && <p role="alert">{errors.submit}</p>}
             <p style={{ fontSize: 13, color: "var(--text-soft)", marginBottom: 12 }}>
               Share a payment confirmation with the partner on WhatsApp?
             </p>
@@ -208,6 +229,20 @@ export function RecordProfitModal({
     );
   }
 
+  if (reviewing) return <div className={embedded ? "overview-payment" : "modal-backdrop"} role={embedded ? undefined : 'dialog'} aria-modal={embedded ? undefined : true} aria-labelledby="profit-review-title">
+    <div className="modal"><div className="modal__header"><h2 id="profit-review-title">Confirm profit allocation</h2></div>
+      <form className="modal__body" onSubmit={handleSubmit}>
+        <p><strong>{partnerName ?? 'Partner'}</strong> · {form.paidDate}</p>
+        <p>{allocationLabel}</p><p>Combined amount: <strong>{fmt(enteredAmount)}</strong></p>
+        <ProfitSplitPreview amount={enteredAmount} capital={capital} customPercent={customPercent} />
+        {isPartial && <p>Partner profit still owed: {computedRemaining === null ? `${remainingPercent}% rate` : fmt(computedRemaining)}</p>}
+        {reinvest && <p>Capital will recur{newReturnDate ? ` · Return date: ${newReturnDate}` : ''}.</p>}
+        {form.notes && <p>Notes: {form.notes}</p>}
+        <div className="modal__footer"><button className="button button--secondary" type="button" disabled={saving} onClick={() => setReviewing(false)}>Back to edit</button><button className="button button--primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Confirm payment'}</button></div>
+      </form>
+    </div>
+  </div>;
+
   return (
     <div className={embedded ? "overview-payment" : "modal-backdrop"} role={embedded ? undefined : "dialog"} aria-modal={embedded ? undefined : true} aria-labelledby="pp-title">
       <div className="modal">
@@ -219,14 +254,14 @@ export function RecordProfitModal({
           {errors.submit && <p className="form-error" role="alert">{errors.submit}</p>}
           <div className="form-hint">
             Allocation: <strong>{allocationLabel}</strong>
-            {!capitalReturned && <>{" · "}Expected: <strong>{fmt(expectedMonthlyProfit)}</strong></>}
-            {" · "}Pending: <strong style={{ color: "var(--outgoing)" }}>{pendingAmount > 0 && pendingAmount < 1 ? "< ₹1" : fmt(pendingAmount)}</strong>
+            {!capitalReturned && <>{" · "}Partner expected: <strong>{fmt(expectedMonthlyProfit)}</strong></>}
+            {" · "}Partner pending: <strong style={{ color: "var(--outgoing)" }}>{pendingAmount > 0 && pendingAmount < 1 ? "< ₹1" : fmt(pendingAmount)}</strong>
             {capitalReturned && <p>Capital is fully returned. Enter the actual profit paid for this contribution.</p>}
           </div>
 
           <div className="form-row">
             <div className="form-field">
-              <label className="form-label" htmlFor="pp-amt">Amount paid (₹) *</label>
+              <label className="form-label" htmlFor="pp-amt">Partner + CFO amount (₹) *</label>
               <input
                 id="pp-amt"
                 className={`form-input ${errors.amountStr ? "form-input--error" : ""}`}
@@ -251,6 +286,7 @@ export function RecordProfitModal({
             </div>
           </div>
 
+          <ProfitSplitPreview amount={enteredAmount} capital={capital} customPercent={customPercent} onPercentChange={setCustomPercent} />
           <div className="form-field">
             <label className="form-label" htmlFor="pp-notes">Notes</label>
             <textarea
@@ -303,7 +339,7 @@ export function RecordProfitModal({
                 <div className="form-row">
                   <div className="form-field">
                     <label className="form-label" htmlFor="pp-remaining-amt">
-                      Remaining amount (₹) <span className="form-label__optional">(optional)</span>
+                      Partner amount still owed (₹) <span className="form-label__optional">(optional)</span>
                     </label>
                     <input
                       id="pp-remaining-amt"

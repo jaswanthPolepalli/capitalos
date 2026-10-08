@@ -1,3 +1,5 @@
+import { ProfitSplitPreview, profitPreview, profitOptions } from '../components/ProfitSplitPreview';
+import { combinedForPartner } from '../../../functions/capitalos-api/profit-sharing.mjs';
 /**
  * BulkPaymentPage — F1: Bulk Payment Recording ("Pay All Pending" flow)
  *
@@ -37,6 +39,8 @@ function fmt(rupees: number): string {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface PaymentItem {
+  capital: number;
+  customPercent: string | null;
   allocationId: string;
   partnerId: string;
   partnerName: string;
@@ -190,7 +194,7 @@ function ReviewStep({
   onConfirm,
 }: {
   items: PaymentItem[];
-  onChange: (allocationId: string, field: string, value: string) => void;
+  onChange: (allocationId: string, field: string, value: string | null) => void;
   onBack: () => void;
   onConfirm: () => void;
 }) {
@@ -200,7 +204,7 @@ function ReviewStep({
 
   const hasError = selected.some((i) => {
     const amt = Number(i.editedAmount);
-    return !i.editedAmount || isNaN(amt) || amt <= 0;
+    return Boolean(profitPreview(amt, i.capital, i.customPercent).error);
   });
 
   return (
@@ -209,7 +213,7 @@ function ReviewStep({
         <div>
           <h2>Step 2 — Review payments</h2>
           <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 4 }}>
-            Adjust amounts if needed. Add reference numbers and notes for each payment.
+            Enter combined partner + CFO amounts. Add reference numbers and notes for each payment.
           </p>
         </div>
         <div className="bulk-total-chip">
@@ -231,12 +235,13 @@ function ReviewStep({
                   <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>{item.allocationLabel}</span>
                 </div>
                 <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Suggested: <strong style={{ color: "var(--outgoing)" }}>{fmt(item.pendingAmount)}</strong>
+                  Partner due: <strong style={{ color: "var(--outgoing)" }}>{fmt(item.pendingAmount)}</strong>
                 </span>
               </div>
               <div className="form-row" style={{ marginTop: 10 }}>
                 <div className="form-field">
-                  <label className="form-label" htmlFor={`amt-${item.allocationId}`}>Amount (₹) *</label>
+                  <ProfitSplitPreview amount={amtNum} capital={item.capital} customPercent={item.customPercent} onPercentChange={value => onChange(item.allocationId, "customPercent", value)} />
+                  <label className="form-label" htmlFor={`amt-${item.allocationId}`}>Partner + CFO amount (₹) *</label>
                   <input
                     id={`amt-${item.allocationId}`}
                     className={`form-input ${!amtValid && item.editedAmount ? "form-input--error" : ""}`}
@@ -348,13 +353,15 @@ export function BulkPaymentPage() {
     allocationSummaries
       .filter((a) => a.profitPending > 0)
       .map((a) => ({
+        capital: a.amountRupees,
+        customPercent: null,
         allocationId: a.id,
         partnerId: a.partnerId,
         partnerName: a.partner?.name ?? a.partnerId,
         allocationLabel: `${fmt(a.amountRupees)} @ ${a.profitPercent}% p.m.`,
         pendingAmount: a.profitPending,
         selected: true,
-        editedAmount: String(Math.round(a.profitPending)),
+        editedAmount: String(combinedForPartner(a.profitPending)),
         date: today,
         notes: "",
         referenceNumber: "",
@@ -377,7 +384,7 @@ export function BulkPaymentPage() {
       const existing = previous.find(item => item.allocationId === fresh.allocationId);
       if (!existing) return { ...fresh, selected: firstLoad };
       const changed = existing.pendingAmount !== fresh.pendingAmount || existing.partnerId !== fresh.partnerId || existing.allocationLabel !== fresh.allocationLabel;
-      return { ...existing, ...fresh, editedAmount: existing.editedAmount, date: existing.date, notes: existing.notes,
+      return { ...existing, ...fresh, editedAmount: existing.editedAmount, customPercent: existing.customPercent, date: existing.date, notes: existing.notes,
         referenceNumber: existing.referenceNumber, selected: changed ? false : existing.selected };
     }));
     if (!firstLoad) {
@@ -402,7 +409,7 @@ export function BulkPaymentPage() {
     setItems((prev) => prev.map((i) => ({ ...i, selected: !allSelected })));
   }
 
-  function handleChange(allocationId: string, field: string, value: string) {
+  function handleChange(allocationId: string, field: string, value: string | null) {
     setItems((prev) => prev.map((i) => i.allocationId === allocationId ? { ...i, [field]: value } : i));
   }
 
@@ -417,7 +424,7 @@ export function BulkPaymentPage() {
     let count = 0;
     let total = 0;
     for (const item of selected) {
-      const amt = Math.round(Number(item.editedAmount));
+      const amt = Number(item.editedAmount);
       if (amt <= 0) continue;
       const notes = [item.notes.trim(), item.referenceNumber ? `Ref: ${item.referenceNumber}` : ""].filter(Boolean).join(" · ");
       try {
@@ -425,6 +432,7 @@ export function BulkPaymentPage() {
           allocationId: item.allocationId,
           partnerId: item.partnerId,
           amountRupees: amt,
+          ...profitOptions(item.customPercent),
           paidDate: item.date || today,
           notes: notes || "Bulk profit payment",
         });

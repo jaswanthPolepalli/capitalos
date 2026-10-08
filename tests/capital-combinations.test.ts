@@ -97,7 +97,7 @@ describe('capital combination', () => {
     expect(store.getPortfolioTotals()).toMatchObject({ totalCapital: 150000, capitalOutstanding: 150000, totalProfitPending: 4800 });
     await expect(store.updateAllocation('1', { amountRupees: 1 })).rejects.toThrow(/preserved/);
     await expect(store.addCapitalReturn({ allocationId: '1', partnerId: 'p', amountRupees: 1, returnedDate: '2026-09-15', notes: '' })).rejects.toThrow(/combined entry/);
-    await expect(store.addProfitRecord({ allocationId: '2', partnerId: 'p', amountRupees: 301, paidDate: '2026-09-15', notes: '' })).rejects.toThrow(/remaining original profit/);
+    await expect(store.addProfitRecord({ allocationId: '2', partnerId: 'p', amountRupees: 422, paidDate: '2026-09-15', notes: '' })).rejects.toThrow(/remaining original profit/);
   });
 
   it('activates on the chosen effective date, with no overlapping outstanding capital', async () => {

@@ -1,3 +1,4 @@
+import { splitProfit } from '../../../functions/capitalos-api/profit-sharing.mjs';
 import { prepareCashback, monthlyCashback } from '../../../functions/capitalos-api/cashback.mjs';
 /**
  * mockFetch — intercepts all /server/capitalos-api/* fetch calls in dev mode.
@@ -159,6 +160,7 @@ async function mockFetch(
   const tableData = store[table];
 
   if (table === 'daily-summary' && id === 'send' && method === 'POST') return ok({ status: 'mock' });
+  if (table === 'daily-summary' && id === 'download' && method === 'POST') return ok({ status: 'mock' });
 
   if (table === 'payment-groups' && method === 'POST') {
     try {
@@ -170,7 +172,7 @@ async function mockFetch(
         const results = previous.result.results.map(item => {
           const record = active(target).find(r => r['id'] === item.record?.id) as unknown as ProfitRecord | CapitalReturn | undefined;
           const original = input.entries.find(e => e.allocationId === item.allocationId)!;
-          if (!record || record.amountRupees !== original.amountRupees || ('paidDate' in record ? record.paidDate : record.returnedDate) !== input.date) return { allocationId: item.allocationId, status: 'unconfirmed' as const };
+          if (!record || (('combinedAmountRupees' in record ? record.combinedAmountRupees : undefined) ?? record.amountRupees) !== original.amountRupees || ('partnerAmountRupees' in record ? record.partnerAmountRupees ?? null : null) !== (original.partnerAmountRupees ?? null) || Boolean('noCfoSplit' in record && record.noCfoSplit) !== Boolean(original.noCfoSplit) || ('partnerProfitPercent' in record ? record.partnerProfitPercent ?? null : null) !== (original.partnerProfitPercent ?? null) || ('paidDate' in record ? record.paidDate : record.returnedDate) !== input.date) return { allocationId: item.allocationId, status: 'unconfirmed' as const };
           return { ...item, record };
         });
         return ok({ groupId: input.groupId, complete: results.every(r => r.status === 'saved'), results, email: { status: 'mock' } });
@@ -281,6 +283,7 @@ async function mockFetch(
     const body = init?.body ? (JSON.parse(init.body as string) as Record<string, unknown>) : {};
     const newRow: Record<string, unknown> = {
       ...body,
+      ...(table === 'profit-records' ? { partnerAmountRupees: undefined, noCfoSplit: undefined, partnerProfitPercent: undefined, profitCapitalRupees: undefined, ...splitProfit(Number(body['amountRupees']), body['partnerProfitPercent'] as number | null | undefined, Number(active('allocations').find(a => a['id'] === body['allocationId'])?.['amountRupees']), body['noCfoSplit'] as boolean | undefined, body['partnerAmountRupees'] as number | null | undefined) } : {}),
       ...(table === "allocations" ? { cashback: { status: body["creditCardId"] ? "review" : "not_applicable", notes: "" } } : {}),
       id: nextMockId(),
       createdAt: new Date().toISOString(),
@@ -297,7 +300,7 @@ async function mockFetch(
     let updated: Record<string, unknown> | null = null;
     store[table] = tableData.map((r) => {
       if (r["id"] === id) {
-        updated = { ...r, ...body };
+        updated = { ...r, ...body, ...(table === 'profit-records' && r['combinedAmountRupees'] !== undefined && (body['amountRupees'] !== undefined || body['partnerProfitPercent'] !== undefined || body['noCfoSplit'] !== undefined || body['partnerAmountRupees'] !== undefined) ? { partnerAmountRupees: undefined, noCfoSplit: undefined, partnerProfitPercent: undefined, profitCapitalRupees: undefined, ...splitProfit(Number(body['amountRupees'] ?? r['combinedAmountRupees']), (body['partnerProfitPercent'] === undefined ? r['partnerProfitPercent'] : body['partnerProfitPercent']) as number | null | undefined, Number(r['profitCapitalRupees'] ?? active('allocations').find(a => a['id'] === r['allocationId'])?.['amountRupees']), (body['noCfoSplit'] === undefined ? r['noCfoSplit'] : body['noCfoSplit']) as boolean | undefined, (body['partnerAmountRupees'] === undefined ? r['partnerAmountRupees'] : body['partnerAmountRupees']) as number | null | undefined) } : {}) };
         if (table === 'allocations' && r['combination']) updated['combination'] = { ...(r['combination'] as object), revertBlocked: true };
         logChange(table, r, updated);
         return updated;

@@ -1,0 +1,91 @@
+.cfo-share-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.cfo-share-page__heading {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.3;
+}
+.cfo-share-page__total {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.cfo-share-page__total strong {
+  color: var(--text);
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+}
+.cfo-share-page__filters {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.cfo-share-page__filters .form-field {
+  margin: 0;
+  flex: 0 1 220px;
+  min-width: 160px;
+}
+.cfo-share-page__transactions {
+  overflow-x: auto;
+}
+.cfo-share-page__transactions table {
+  min-width: 560px;
+}
+.cfo-share-page__transactions th:nth-child(n+3),
+.cfo-share-page__transactions td:nth-child(n+3) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cfo-share-page__filters .form-input,
+.cfo-share-page__filters > .button {
+  height: 40px;
+  box-sizing: border-box;
+}
+.cfo-share-page__transactions table {
+  table-layout: fixed;
+}
+.cfo-share-page__transactions th:first-child { width: 20%; }
+.cfo-share-page__transactions th:nth-child(2) { width: 29%; }
+.cfo-share-page__transactions th:nth-child(3) { width: 20%; }
+.cfo-share-page__transactions th:nth-child(4) { width: 19%; }
+.cfo-share-page__transactions th:nth-child(5) { width: 12%; }
+.cfo-share-page__transactions .table-cell {
+  height: 52px;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+.cfo-share-page__transactions .table-cell:nth-child(n+3) { white-space: nowrap; }
+.cfo-share-page__row { cursor: pointer; }
+.cfo-share-page__row:focus-within { background: var(--surface-hover); }
+.cfo-share-page__record {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.cfo-share-page__record:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+.cfo-share-details { width: min(640px, 100%); }
+.cfo-share-details__partner { margin: 0 0 20px; font-size: 16px; font-weight: 700; }
+.cfo-share-details__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 28px; margin: 0; }
+.cfo-share-details__grid dt { color: var(--muted); font-size: 12px; margin-bottom: 5px; }
+.cfo-share-details__grid dd { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.cfo-share-details__notes { grid-column: 1 / -1; }
+.cfo-share-details__notes dd { white-space: pre-wrap; font-weight: 400; }
+@media (max-width: 480px) {
+  .cfo-share-page__filters .form-field { flex: 1 1 140px; min-width: 0; }
+  .cfo-share-details__grid { gap: 16px; }
+}

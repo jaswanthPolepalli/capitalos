@@ -53,8 +53,8 @@ it('records five rows in one save and builds one WhatsApp message with the total
 });
 
 it('automatically preserves the pending remainder when one row is only partly paid', async () => {
-  const user = modal(); const amount = screen.getByLabelText('Profit paid — entry a (₹)');
-  await user.clear(amount); await user.type(amount, '100');
+  const user = modal(); const amount = screen.getByLabelText('Partner + CFO amount — entry a (₹)');
+  await user.clear(amount); await user.type(amount, '140');
   await user.click(screen.getByRole('button', { name: /Record 5 payments/ }));
   await screen.findByRole('heading', { name: 'Payments recorded' });
   expect(store.getAllocationSummaries().find(a => a.id === 'a')).toMatchObject({ profitPending: 200, isPartiallyPaid: true });
@@ -81,7 +81,7 @@ it('recovers a lost server response using the same group, without recording dupl
   await user.click(screen.getByRole('button', { name: /Record 5 payments/ }));
   expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Connection lost');
   expect(h.db.COS_Profits).toHaveLength(5);
-  expect(screen.getByLabelText('Profit paid — entry a (₹)').disabled).toBe(true);
+  expect(screen.getByLabelText('Partner + CFO amount — entry a (₹)').disabled).toBe(true);
   await user.click(screen.getByRole('button', { name: 'Check save status' }));
   await screen.findByRole('heading', { name: 'Payments recorded' });
   expect(h.db.COS_Profits).toHaveLength(5); expect(store.getProfitRecords()).toHaveLength(5);

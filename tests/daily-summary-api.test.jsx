@@ -23,3 +23,19 @@ it('never sends mail from the server mock environment', async () => {
   expect(await h.request('POST', 'daily-summary/send', { requestId: 'test-manual-123456789' })).toMatchObject({ data: { status: 'mock' } });
   expect(send).not.toHaveBeenCalled(); expect(h.calls).toEqual([]);
 });
+it('downloads a valid PDF without email, reservations, or financial writes, including repeat downloads', async () => {
+  const send = vi.fn(); const h = createApiHarness(baseData(), undefined, send);
+  for (let i = 0; i < 2; i++) {
+    const result = await h.request('POST', 'daily-summary/download', {});
+    expect(result).toMatchObject({ status: 'success', data: { status: 'ready', filename: expect.stringMatching(/^CapitalOS-Daily-Summary-\d{4}-\d{2}-\d{2}\.pdf$/) } });
+    expect(Buffer.from(result.data.contentBase64, 'base64').subarray(0, 5).toString()).toBe('%PDF-');
+  }
+  expect(send).not.toHaveBeenCalled();
+  expect(h.calls.every(c => c.operation === 'page')).toBe(true);
+});
+it('fails a download if source data cannot be loaded and does not email', async () => {
+  const send = vi.fn(); const h = createApiHarness(baseData(), name => name === 'COS_Profits', send);
+  expect(await h.request('POST', 'daily-summary/download', {})).toMatchObject({ status: 'error' });
+  expect(send).not.toHaveBeenCalled();
+  expect(h.calls.every(c => c.operation === 'page')).toBe(true);
+});

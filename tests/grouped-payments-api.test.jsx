@@ -9,7 +9,7 @@ function setup(fail) {
 }
 function input(kind = 'profit') {
   return { groupId: '12345678-1234-1234-1234-123456789abc', kind, partnerId: 'p', date: '2026-09-20', reference: 'UTR-123', notes: 'September settlement',
-    entries: ['a', 'b', 'c', 'd', 'e'].map(allocationId => ({ allocationId, amountRupees: kind === 'profit' ? 300 : 1000, expectedBalance: kind === 'profit' ? 300 : allocationId === 'a' ? 9000 : 10000, recur: false })) };
+    entries: ['a', 'b', 'c', 'd', 'e'].map(allocationId => ({ allocationId, amountRupees: kind === 'profit' ? 420 : 1000, expectedBalance: kind === 'profit' ? 300 : allocationId === 'a' ? 9000 : 10000, recur: false })) };
 }
 
 describe('grouped payment API', () => {
@@ -26,11 +26,11 @@ describe('grouped payment API', () => {
   });
   it('stores automatic remaining profit and recurring settings per entry', async () => {
     const h = setup(); const body = input();
-    body.entries[0].amountRupees = 100; body.entries[1].recur = true;
+    body.entries[0].amountRupees = 140; body.entries[1].recur = true;
     const response = await h.request('POST', 'payment-groups', body);
     expect(response.data.results[0].record.notes).toContain('Partial payment · Remaining: ₹200');
     expect(response.data.results[1].record.notes).toContain('Capital reinvested');
-    const next = input(); next.groupId = '22345678-1234-1234-1234-123456789abc'; next.entries = [{ ...body.entries[0], amountRupees: 200, expectedBalance: 200 }];
+    const next = input(); next.groupId = '22345678-1234-1234-1234-123456789abc'; next.entries = [{ ...body.entries[0], amountRupees: 280, expectedBalance: 200 }];
     expect((await h.request('POST', 'payment-groups', next)).data.complete).toBe(true);
   });
   it('records capital returns without settling pending profit', async () => {
@@ -122,7 +122,7 @@ it('accepts combined-capital profit on its October 1 effective date with Recur',
   const h = setup();
   const combination = await h.request('POST', 'allocations/combine', { allocationIds: ['a', 'b'], effectiveDate: '2026-10-01', profitPercent: 3, returnDate: null });
   expect(combination.status).toBe('success');
-  const profit = { ...input(), date: '2026-10-01', notes: 'October settlement', entries: [{ allocationId: combination.data.id, amountRupees: 570, expectedBalance: 570, recur: true }] };
+  const profit = { ...input(), date: '2026-10-01', notes: 'October settlement', entries: [{ allocationId: combination.data.id, amountRupees: 798, expectedBalance: 570, recur: true }] };
   const result = await h.request('POST', 'payment-groups', profit);
   expect(result.data.complete).toBe(true);
   expect(result.data.results[0].record).toMatchObject({ allocationId: combination.data.id, paidDate: '2026-10-01', amountRupees: 570 });
