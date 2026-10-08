@@ -1,5 +1,6 @@
 'use strict';
 const { createHash } = require('node:crypto');
+const { latestProfitPayment } = require('./profit-cycles.mjs');
 const { decode } = require('./combinations.mjs');
 const { pendingProfit, paymentMetadata } = require('./payment-groups.mjs');
 const { cashbackStatus, monthlyCashback } = require('./cashback.mjs');
@@ -69,6 +70,8 @@ function buildDailySummary(data, window = dailyWindow()) {
     const remaining = a.amountRupees - sum(rs.map(r => r.amountRupees));
     if (remaining < 0) throw new Error('Capital returns exceed the contribution; summary not sent.');
     const outstanding = transferred.has(a.id) ? 0 : remaining;
+    const latest = latestProfitPayment(profits.filter(p => p.allocationId === a.id));
+    if (latest?.amountRupees === 0 && latest.notes.startsWith('Profit closed without payment')) row.closedWithoutPayment = true;
     row.amount = sum([row.amount, outstanding]);
     row.profit = sum([row.profit, money(pendingProfit(a, allocations, profits, window.date, returns))]);
     // Settled contributions must not contribute stale dates or reorder active balances.
@@ -82,7 +85,7 @@ function buildDailySummary(data, window = dailyWindow()) {
   }
   const rows = [...groups.values()].filter(row => row.amount > 0).map(row => ({ ...row, due: [...new Set(row.due)].sort((a, b) => (a || '9999').localeCompare(b || '9999')) }));
   rows.sort((a, b) => (a.due.find(Boolean) || '9999').localeCompare(b.due.find(Boolean) || '9999') || (a.billed ? b.last.localeCompare(a.last) : a.last.localeCompare(b.last)) || a.partner.localeCompare(b.partner) || a.card.localeCompare(b.card));
-  cashbackRows.sort((a, b) => a.partner.localeCompare(b.partner) || a.card.localeCompare(b.card) || a.date.localeCompare(b.date));
+  cashbackRows.sort((a, b) => a.date.localeCompare(b.date) || a.partner.localeCompare(b.partner) || a.card.localeCompare(b.card));
   const cashbacks = allocations.filter(a => a.cashback?.status === 'paid' && a.cashback.paidDate <= window.date);
   const movements = [
     ...allocations.filter(a => !a.combination).map(a => ({ kind: 'additions', date: a.receivedDate, amount: a.amountRupees, createdAt: a.createdAt })),

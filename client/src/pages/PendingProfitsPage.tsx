@@ -379,7 +379,7 @@ export function PendingProfitsPage() {
           paidRateLabel(r, alloc),
           alloc?.receivedDate ?? "",
           r.amountRupees,
-          "Paid",
+          r.amountRupees === 0 && r.notes.startsWith("Profit closed without payment") ? "Closed without payment" : "Paid",
           monthLabel,
           (r.notes ?? "").replace(/\s*WA_CONFIRMED\s*/g, "").trim(),
         ]);

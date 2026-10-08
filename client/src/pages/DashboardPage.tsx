@@ -560,7 +560,7 @@ export function DashboardPage() {
                   <div>
                     <strong>
                       {e.eventType === "PROFIT_PAID"
-                        ? "Profit paid"
+                        ? e.amountRupees === 0 && e.notes.startsWith("Profit closed without payment") ? "Profit closed" : "Profit paid"
                         : e.eventType === "CASHBACK_PAID" ? "Cashback sharing" : "Capital returned"}
                     </strong>
                     <small>

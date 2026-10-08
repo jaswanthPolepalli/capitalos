@@ -217,6 +217,12 @@ function getRepository(req) {
 async function fetchAllRows(req, tableName) { return getRepository(req).fetch(tableName); }
 async function insertRow(req, tableName, rowData) { return getRepository(req).insert(tableName, rowData, req.url); }
 async function updateRowById(req, tableName, rowId, rowData) {
+  if (tableName === TABLES.PROFIT_RECORDS && req.method === 'PATCH') {
+    if (rowData.amount_rupees !== undefined && (!Number.isSafeInteger(rowData.amount_rupees) || rowData.amount_rupees <= 0)) throw Object.assign(new Error('Use Close profit without payment to settle a zero amount.'), { statusCode: 400 });
+    const previous = await getApp(req).datastore().table(tableName).getRow(rowId);
+    if (Number(previous?.amount_rupees) === 0 && previous?.notes?.includes('Profit closed without payment')) throw Object.assign(new Error('A profit closure cannot be edited as a payment. Delete the closure to reopen the balance.'), { statusCode: 400 });
+  }
+
   if ([TABLES.PROFIT_RECORDS, TABLES.CAPITAL_RETURNS].includes(tableName) && rowData.notes !== undefined) {
     const previous = await getApp(req).datastore().table(tableName).getRow(rowId);
     const { paymentGroupId } = paymentMetadata(previous?.notes);
@@ -425,6 +431,26 @@ module.exports = async function(req, res) {
   var method = req.method || "GET";
 
   try {
+    if (path === 'profit-records/close' && method === 'POST') {
+      const input = await readBody(req);
+      const partners = await fetchAllRows(req, TABLES.PARTNERS);
+      if (!partners.some(p => String(p.ROWID) === input.partnerId && !isDeleted(p.notes))) return badRequest(res, 'Active partner not found.');
+      const { prepareProfitClosure } = require('./profit-closure.mjs');
+      const [allocations, profits, returns] = await Promise.all([
+        fetchAllRows(req, TABLES.ALLOCATIONS), fetchAllRows(req, TABLES.PROFIT_RECORDS), fetchAllRows(req, TABLES.CAPITAL_RETURNS),
+      ]);
+      const record = prepareProfitClosure(input, allocations.filter(r => !isDeleted(r.notes)).map(mapAllocation), profits.filter(r => !isDeleted(r.notes)).map(mapProfitRecord), returns.filter(r => !isDeleted(r.notes)).map(mapCapitalReturn), new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }));
+      const saved = await insertRow(req, TABLES.PROFIT_RECORDS, { allocation_id: record.allocationId, partner_id: record.partnerId, amount_rupees: 0, paid_date: record.paidDate, notes: record.notes });
+      return created(res, mapProfitRecord(saved));
+    }
+    if (path === 'daily-summary/download' && method === 'POST') {
+      if (process.env.VITE_USE_MOCK === 'true' || process.env.CAPITALOS_MOCK === 'true') return ok(res, { status: 'mock' });
+      const { loadSummaryData, buildDailySummary } = require('./daily-summary.js');
+      const { renderDailySummary } = require('./daily-summary-pdf.js');
+      const summary = buildDailySummary(await loadSummaryData(name => getApp(req).datastore().table(name)));
+      const pdf = await renderDailySummary(summary);
+      return ok(res, { status: 'ready', filename: `CapitalOS-Daily-Summary-${summary.date}.pdf`, contentBase64: pdf.toString('base64') });
+    }
     if (path === 'daily-summary/send' && method === 'POST') {
       const input = await readBody(req);
       // The recipient is fixed server-side; caller-supplied addresses are ignored.

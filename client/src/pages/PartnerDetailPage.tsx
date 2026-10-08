@@ -1,3 +1,4 @@
+import { CloseProfitPanel } from '../components/CloseProfitPanel';
 import { paidRateLabel, monthlyPayout } from "../lib/profitDisplay";
 import { EarningsSummary } from '../components/EarningsSummary';
 import { PaymentSelectionActions } from '../components/PaymentSelectionActions';
@@ -356,6 +357,7 @@ function RecordProfitModal({
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({ amountStr: String(Math.round(pendingAmount)), paidDate: today, notes: "" });
+  const [closing, setClosing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [reinvest, setReinvest] = useState(false);
   const [newReturnDate, setNewReturnDate] = useState("");
@@ -397,6 +399,8 @@ function RecordProfitModal({
   const set = (f: string, v: string) => { setForm((p) => ({ ...p, [f]: v })); setErrors((e) => ({ ...e, [f]: undefined as unknown as string })); };
 
   const fmt2 = (r: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(r);
+
+  if (closing) return <CloseProfitPanel allocationId={allocationId} partnerId={partnerId} pendingAmount={pendingAmount} partnerName={partnerName} canRecur={(capitalOutstanding ?? 0) > 0} onCancel={() => setClosing(false)} onClose={onClose} />;
 
   if (submitted) {
     const waLink = buildProfitPaymentWhatsAppLink({
@@ -453,6 +457,7 @@ function RecordProfitModal({
       <div className="modal">
         <div className="modal__header"><h2 id="rp-title">Record Profit Payment</h2><button className="icon-button" onClick={onClose} type="button"><CheckCircle2 size={16} /></button></div>
         <form className="modal__body" onSubmit={handleSubmit} noValidate>
+          {pendingAmount > 0 && <button type="button" className="button button--secondary" onClick={() => setClosing(true)}>Close profit without payment</button>}
           <div className="form-row">
             <div className="form-field">
               <label className="form-label" htmlFor="rp-amt">Amount (₹) *</label>

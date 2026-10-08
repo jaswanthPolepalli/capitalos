@@ -66,6 +66,8 @@ export function EditProfitPaymentModal({
     }
   }
 
+  if (record.amountRupees === 0 && record.notes.startsWith('Profit closed without payment')) return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Profit closure"><div className="modal"><div className="modal__body"><h2>Profit closed without payment</h2><p>{record.notes}</p><p>This closure cannot be edited as a payment. Delete the closure from history to reopen its pending balance.</p><button type="button" className="button button--secondary" onClick={onClose}>Done</button></div></div></div>;
+
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-profit-title">
       <div className="modal">
