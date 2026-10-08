@@ -440,8 +440,16 @@ module.exports = async function(req, res) {
         fetchAllRows(req, TABLES.ALLOCATIONS), fetchAllRows(req, TABLES.PROFIT_RECORDS), fetchAllRows(req, TABLES.CAPITAL_RETURNS),
       ]);
       const record = prepareProfitClosure(input, allocations.filter(r => !isDeleted(r.notes)).map(mapAllocation), profits.filter(r => !isDeleted(r.notes)).map(mapProfitRecord), returns.filter(r => !isDeleted(r.notes)).map(mapCapitalReturn), new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }));
+      const { profitClosureMessage } = require('./profit-closure-message.mjs');
+      const partner = partners.find(p => String(p.ROWID) === input.partnerId);
+      const allocation = allocations.filter(r => !isDeleted(r.notes)).map(mapAllocation).find(a => a.id === input.allocationId);
+      const cards = allocation.creditCardId ? await fetchAllRows(req, TABLES.CREDIT_CARDS) : [];
+      const card = cards.find(c => String(c.ROWID) === allocation.creditCardId && !isDeleted(c.notes));
+      const message = profitClosureMessage(partner, allocation, record, profits.filter(r => !isDeleted(r.notes)).map(mapProfitRecord), card?.card_name);
       const saved = await insertRow(req, TABLES.PROFIT_RECORDS, { allocation_id: record.allocationId, partner_id: record.partnerId, amount_rupees: 0, paid_date: record.paidDate, notes: record.notes });
-      return created(res, mapProfitRecord(saved));
+      const email = await sendPartnerEmail(req, input.partnerId, 'Profit Closure Confirmation — CapitalOS',
+        `<div style="white-space:pre-wrap;font-family:sans-serif">${escapeHtml(message)}</div>`);
+      return created(res, { ...mapProfitRecord(saved), confirmation: { message, phone: partner.phone || '', emailStatus: email.status } });
     }
     if (path === 'daily-summary/download' && method === 'POST') {
       if (process.env.VITE_USE_MOCK === 'true' || process.env.CAPITALOS_MOCK === 'true') return ok(res, { status: 'mock' });

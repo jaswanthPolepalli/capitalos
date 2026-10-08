@@ -1,5 +1,7 @@
 # CapitalOS — Deployment & Project Reference
 
+**Latest release — 8 October 2026:** Closing profit now provides a transaction-level email confirmation and WhatsApp draft with current/earlier profit, paid cashback, total received and actual total return. Deployed after verified 743-record backups, isolated rollback rehearsal, 886 tests and hosted checks. See [release evidence and rollback](docs/deployment-closure-messages-2026-10-08.md).
+
 **Latest release — 8 October 2026:** Reports now supports PDF download with oldest-first cashback dates. Profit can be closed without payment after an explicit waiver warning, with audited zero-amount history and optional recurrence. API, both workers and frontend deployed after fresh 743-record backups, isolated restoration/rollback rehearsal, 879 tests and hosted PDF/API verification. See [release evidence and rollback considerations](docs/deployment-pdf-profit-close-2026-10-08.md).
 
 **Latest release — 8 October 2026:** Monthly payouts now use actual paid plus remaining pending profit, including partial carryover and recurrence. Paid histories and confirmations show actual paid rates. API and frontend deployed after fresh 743-record backups, isolated restoration and rollback rehearsal, 859 tests and hosted verification. See [release evidence and rollback](docs/deployment-profit-consistency-2026-10-08.md).

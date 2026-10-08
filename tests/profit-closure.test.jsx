@@ -35,7 +35,7 @@ it('persists an auditable zero closure, reloads it, sends no mail and rejects du
   const body = { ...input, expectedPending: 300 };
   const result = await h.request('POST', 'profit-records/close', body);
   expect(result).toMatchObject({ status: 'success', data: { amountRupees: 0, paidDate: '2026-10-08', notes: expect.stringContaining('Profit closed without payment') } });
-  expect((await h.request('GET', 'profit-records')).data).toContainEqual(result.data);
+  expect((await h.request('GET', 'profit-records')).data).toContainEqual(expect.objectContaining({ id: result.data.id, amountRupees: 0 }));
   expect(h.db.COS_Activity.some(e => e.status === 'committed')).toBe(true);
   expect(send).not.toHaveBeenCalled();
   expect(await h.request('POST', 'profit-records/close', body)).toMatchObject({ status: 'error' });

@@ -50,3 +50,14 @@ it('opens the warning from the payment form with a blank amount and closes witho
   expect(closeProfit).toHaveBeenCalledOnce();
   expect(addProfitRecord).not.toHaveBeenCalled();
 });
+
+it('shows the closure snapshot and a user-controlled WhatsApp link with email outcome', async () => {
+  const message = 'Profit Closure Confirmation\nCurrent profit: ₹0\nTotal return: 4.00%';
+  closeProfit.mockResolvedValue({ amountRupees: 0, confirmation: { message, phone: '9999999999', emailStatus: 'unconfirmed' } });
+  render(<CloseProfitPanel {...props} />);
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Accept and close profit' }));
+  const link = await screen.findByRole('link', { name: 'Share on WhatsApp' });
+  expect(new URL(link.href).searchParams.get('text')).toBe(message);
+  expect(screen.getByText(/Email delivery could not be confirmed/)).toBeTruthy();
+  expect(closeProfit).toHaveBeenCalledOnce();
+});

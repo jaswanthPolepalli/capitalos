@@ -726,8 +726,8 @@ export interface AddProfitRecordInput {
   notes: string;
 }
 
-export async function closeProfit(input: { allocationId: string; partnerId: string; expectedPending: number; recur: boolean; confirmed: true }): Promise<ProfitRecord> {
-  const record = await apiPost<ProfitRecord>('profit-records/close', input);
+export async function closeProfit(input: { allocationId: string; partnerId: string; expectedPending: number; recur: boolean; confirmed: true }): Promise<ProfitRecord & { confirmation?: { message: string; phone: string; emailStatus: string } }> {
+  const record = await apiPost<ProfitRecord & { confirmation?: { message: string; phone: string; emailStatus: string } }>('profit-records/close', input);
   profitRecords = [...profitRecords, record];
   ledger = [...ledger, { id: `l-pr-${record.id}`, eventType: 'PROFIT_PAID', partnerId: record.partnerId, allocationId: record.allocationId, refId: record.id, amountRupees: 0, date: record.paidDate, createdAt: record.createdAt || new Date().toISOString(), notes: record.notes }];
   notify();

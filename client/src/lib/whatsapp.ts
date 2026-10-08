@@ -142,7 +142,7 @@ export function buildCapitalReturnWhatsAppLink(opts: WhatsAppCapitalReturnOption
  * If phone is provided (E.164 or Indian format), it pre-fills the recipient.
  * Otherwise, opens "select contact" flow (works on WhatsApp Web and mobile).
  */
-function buildWhatsAppLink(phone: string | null | undefined, text: string): string {
+export function buildWhatsAppLink(phone: string | null | undefined, text: string): string {
   const encodedText = encodeURIComponent(text);
   const cleanPhone = phone ? phone.replace(/\D/g, "") : null;
 
