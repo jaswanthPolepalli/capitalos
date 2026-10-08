@@ -1,3 +1,4 @@
+import { paidRateLabel, monthlyPayout } from "../lib/profitDisplay";
 import { EarningsSummary } from '../components/EarningsSummary';
 import { PaymentSelectionActions } from '../components/PaymentSelectionActions';
 import { RecordRow } from "../components/RecordRow";
@@ -26,7 +27,7 @@ import { PageHeader } from "../components/PageHeader";
 import { formatDate } from "../lib/format";
 import { buildProfitPaymentWhatsAppLink } from "../lib/whatsapp";
 import {
-  addAllocation, addCapitalReturn, addProfitRecord, computeNextDueDate, updateAllocationReturnDate, updatePartner,
+  getAllocations, addAllocation, addCapitalReturn, addProfitRecord, computeNextDueDate, updateAllocationReturnDate, updatePartner,
   type AddAllocationInput, type AddCapitalReturnInput, type AddProfitRecordInput, type CreditCard,
 } from "../store";
 import { useStore } from "../useStore";
@@ -403,6 +404,7 @@ function RecordProfitModal({
       partnerPhone: partnerPhone ?? null,
       amountRupees: submittedAmount,
       paidDate: submittedDate,
+      contributionAmountRupees: getAllocations().find(a => a.id === allocationId)?.amountRupees ?? null,
       capitalOutstanding: capitalOutstanding ?? null,
       profitPercent: profitPercent ?? null,
       fundingSource: fundingSource ?? null,
@@ -680,7 +682,7 @@ export function PartnerDetailPage() {
   const cardOutstanding = partnerAllocations.filter((a) => !!a.creditCardId).reduce((s, a) => s + a.capitalOutstanding, 0);
   const totalProfitPaid = partnerAllocations.reduce((s, a) => s + a.totalProfitPaid, 0);
   const totalProfitPending = partnerAllocations.reduce((s, a) => s + a.profitPending, 0);
-  const expectedMonthlyProfit = partnerAllocations.reduce((s, a) => s + a.expectedMonthlyProfit, 0);
+  const expectedMonthlyProfit = partnerAllocations.reduce((s, a) => s + monthlyPayout(a, profitRecords), 0);
   const hasCreditCards = partnerCards.length > 0;
 
   if (!partner) {
@@ -808,7 +810,7 @@ export function PartnerDetailPage() {
         <div className="fin-card">
           <p className="fin-card__label">Exp. monthly profit</p>
           <strong className="fin-card__value" style={{ color: "var(--text-soft)" }}>{fmt(expectedMonthlyProfit)}</strong>
-          <p className="fin-card__sub">On outstanding capital</p>
+          <p className="fin-card__sub">This month · actual paid + remaining estimates</p>
         </div>
         <div className="fin-card">
           <p className="fin-card__label">Profit paid</p>
@@ -973,7 +975,7 @@ export function PartnerDetailPage() {
                   return (
                     <RecordRow className="table-row" key={r.id}>
                       <td className="table-cell table-cell--secondary" data-label="Date">{formatDate(r.paidDate)}</td>
-                      <td className="table-cell table-cell--secondary" data-label="Allocation">{alloc ? `${fmt(alloc.amountRupees)} @ ${alloc.profitPercent}%` : r.allocationId}</td>
+                      <td className="table-cell table-cell--secondary" data-label="Allocation">{alloc ? `${fmt(alloc.amountRupees)} · ${paidRateLabel(r, alloc)}` : r.allocationId}</td>
                       <td className="table-cell table-cell--money" style={{ color: "var(--incoming)" }} data-label="Amount">
                         <TrendingDown size={13} style={{ verticalAlign: "middle", marginRight: 3 }} />
                         <strong>{fmt(r.amountRupees)}</strong>

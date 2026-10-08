@@ -1,3 +1,4 @@
+import { paidRateLabel } from "../lib/profitDisplay";
 import { EarningsSummary } from '../components/EarningsSummary';
 /**
  * Public portal — read-only views shared with partners and CEOs.
@@ -491,7 +492,7 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
                     <tr key={r.id}>
                       <td data-label="Date">{formatDate(r.paidDate)}</td>
                       <td style={{ color: "var(--muted)", fontSize: 12 }} data-label="Capital allocation">
-                        {alloc ? `${fmt(alloc.amountRupees)} @ ${alloc.profitPercent}% p.m.` : "—"}
+                        {alloc ? `${fmt(alloc.amountRupees)} · ${paidRateLabel(r, alloc)}` : "—"}
                       </td>
                       <td className="public-portal__td--money" style={{ color: "var(--incoming)" }} data-label="Amount received">
                         <strong>{fmt(r.amountRupees)}</strong>

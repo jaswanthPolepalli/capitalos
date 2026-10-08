@@ -1,3 +1,4 @@
+import { monthlyPayout, monthlyRateLabel } from "../client/src/lib/profitDisplay.js";
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { pendingProfit, preparePaymentGroup } from '../functions/capitalos-api/payment-groups.mjs';
 import { buildCombination } from '../functions/capitalos-api/combinations.mjs';
@@ -47,10 +48,35 @@ describe('monthly recurring profit rollover', () => {
     vi.setSystemTime(new Date('2026-11-01T12:00:00Z'));
     expect(store.getAllocationSummaries()[0]).toMatchObject({ profitPending: recur ? 9000 : 0, nextMonthProfit: 0 });
   });
+  it.each([false, true])('keeps actual settlement consistent across summaries and reload, then rolls over at the configured rate (recur: %s)', async recur => {
+    const store = await setup();
+    await store.addProfitRecord({ allocationId: 'a', partnerId: 'p', amountRupees: 5000, paidDate: '2026-10-01', notes: recur ? 'Capital reinvested' : '' });
+    for (const reload of [false, true]) {
+      if (reload) await store.loadAll();
+      const summary = store.getAllocationSummaries()[0]!;
+      expect(summary).toMatchObject({ profitPending: 0, nextMonthProfit: recur ? 9000 : 0 });
+      expect(monthlyPayout(summary, store.getProfitRecords(), '2026-10')).toBe(5000);
+      expect(monthlyRateLabel(summary, store.getProfitRecords(), '2026-10')).toBe('1.67% paid');
+      expect(store.getPartnerSummaries()[0]?.expectedMonthlyProfit).toBe(5000);
+      expect(store.getPortfolioTotals().expectedMonthlyProfit).toBe(5000);
+    }
+    vi.setSystemTime(new Date('2026-11-01T12:00:00Z'));
+    expect(store.getAllocationSummaries()[0]?.profitPending).toBe(recur ? 9000 : 0);
+    expect(store.getPortfolioTotals().expectedMonthlyProfit).toBe(recur ? 9000 : 0);
+  });
   it('partial October profit remains pending and does not create November early', async () => {
     const store = await setup();
     await store.addProfitRecord({ allocationId: 'a', partnerId: 'p', amountRupees: 3000, paidDate: '2026-10-01', notes: 'Partial payment · Remaining: ₹6,000 · Capital reinvested' });
     expect(store.getAllocationSummaries()[0]).toMatchObject({ profitPending: 6000, nextMonthProfit: 0 });
+    const summary = store.getAllocationSummaries()[0]!;
+    expect(monthlyPayout(summary, store.getProfitRecords(), '2026-10')).toBe(9000);
+    expect(monthlyRateLabel(summary, store.getProfitRecords(), '2026-10')).toBe('1.00% paid');
+    expect(store.getPartnerSummaries()[0]?.expectedMonthlyProfit).toBe(9000);
+    expect(store.getPortfolioTotals().expectedMonthlyProfit).toBe(9000);
+    vi.setSystemTime(new Date('2026-11-01T12:00:00Z'));
+    expect(store.getPortfolioTotals().expectedMonthlyProfit).toBe(6000);
+    await store.loadAll();
+    expect(store.getPortfolioTotals().expectedMonthlyProfit).toBe(6000);
   });
   it('preserves October debt when principal returns during October, using returns before the cycle to determine the amount', () => {
     const returned = (date: string): CapitalReturn => ({ id: 'r', allocationId: 'a', partnerId: 'p', amountRupees: 100000, returnedDate: date, notes: '' });

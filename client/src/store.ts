@@ -1,3 +1,4 @@
+import { monthlyPayout } from "./lib/profitDisplay.js";
 import { cashbackTotals, monthlyCashback } from '../../functions/capitalos-api/cashback.mjs';
 import type { Cashback } from '../../functions/capitalos-api/cashback.mjs';
 export type { Cashback };
@@ -65,6 +66,7 @@ export interface CapitalReturn {
 }
 
 export interface ProfitRecord {
+  profitCapitalRupees?: number;
   paymentGroupId?: string;
   id: string;
   allocationId: string;
@@ -519,7 +521,7 @@ export function getPartnerSummaries(): PartnerSummary[] {
     const activeAllocationCount = pa.filter((a) => !a.isFullyReturned).length;
     const totalProfitPaid = pa.reduce((s, a) => s + a.totalProfitPaid, 0);
     const totalProfitPending = pa.reduce((s, a) => s + a.profitPending, 0);
-    const expectedMonthlyProfit = pa.reduce((s, a) => s + a.expectedMonthlyProfit, 0);
+    const expectedMonthlyProfit = pa.reduce((s, a) => s + monthlyPayout(a, profitRecords), 0);
     const returnDates = pa.filter((a) => !a.isFullyReturned && a.returnDate !== null).map((a) => a.returnDate as string).sort();
     const nextReturnDate = returnDates[0] ?? null;
     const hasCreditCards = partnerCards.length > 0;
@@ -555,7 +557,7 @@ export function getPortfolioTotals(): PortfolioTotals {
     cardOutstanding: summaries.filter((a) => !!a.creditCardId).reduce((s, a) => s + a.capitalOutstanding, 0),
     totalProfitPaid: summaries.reduce((s, a) => s + a.totalProfitPaid, 0),
     totalProfitPending: summaries.reduce((s, a) => s + a.profitPending, 0),
-    expectedMonthlyProfit: summaries.reduce((s, a) => s + a.expectedMonthlyProfit, 0),
+    expectedMonthlyProfit: summaries.reduce((s, a) => s + monthlyPayout(a, profitRecords), 0),
     activePartners: new Set(summaries.filter((a) => a.capitalOutstanding > 0).map((a) => a.partnerId)).size,
     allocationCount: summaries.length,
   };

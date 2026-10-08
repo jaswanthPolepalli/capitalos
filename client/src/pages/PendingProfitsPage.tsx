@@ -1,3 +1,4 @@
+import { paidRateLabel } from "../lib/profitDisplay";
 import { cashbackStatus } from '../../../functions/capitalos-api/cashback.mjs';
 import { CashbackList, cashbackLabels } from '../components/CashbackList';
 import { PaymentSelectionActions } from '../components/PaymentSelectionActions';
@@ -375,7 +376,7 @@ export function PendingProfitsPage() {
         rows.push([
           alloc?.partner?.name ?? r.partnerId,
           alloc?.amountRupees ?? "",
-          alloc ? `${alloc.profitPercent}% p.m.` : "",
+          paidRateLabel(r, alloc),
           alloc?.receivedDate ?? "",
           r.amountRupees,
           "Paid",
@@ -730,7 +731,7 @@ export function PendingProfitsPage() {
                         </td>
                         <td className="table-cell table-cell--money" data-label="Capital">{alloc ? fmt(alloc.amountRupees) : "—"}</td>
                         <td className="table-cell" data-label="Rate">
-                          {alloc ? <span className="party-type-chip party-type-chip--partner">{alloc.profitPercent}% p.m.</span> : "—"}
+                          {alloc ? <span className="party-type-chip party-type-chip--partner">{paidRateLabel(r, alloc)}</span> : "—"}
                         </td>
                         <td className="table-cell profit-source-cell" data-label="Source">
                           {alloc?.creditCard ? (

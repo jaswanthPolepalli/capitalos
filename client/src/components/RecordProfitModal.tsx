@@ -1,7 +1,7 @@
 import { CheckCircle2, MessageCircle, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { buildProfitPaymentWhatsAppLink } from "../lib/whatsapp";
-import { addProfitRecord, updateAllocationReturnDate, type AddProfitRecordInput } from "../store";
+import { getAllocations, addProfitRecord, updateAllocationReturnDate, type AddProfitRecordInput } from "../store";
 
 function fmt(rupees: number): string {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(rupees);
@@ -148,6 +148,7 @@ export function RecordProfitModal({
       partnerPhone: partnerPhone ?? null,
       amountRupees: submittedAmount,
       paidDate: submittedDate,
+      contributionAmountRupees: getAllocations().find(a => a.id === allocationId)?.amountRupees ?? null,
       capitalOutstanding: capitalOutstanding ?? null,
       profitPercent: profitPercent ?? null,
       fundingSource: fundingSource ?? null,

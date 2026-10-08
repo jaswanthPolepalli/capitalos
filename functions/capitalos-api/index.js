@@ -117,7 +117,8 @@ async function profitEmail(req, partnerName, payment, allocation, allocations, c
   const today = new Date().toLocaleDateString('en-CA');
   const transferred = allocations.some(parent => parent.receivedDate <= today && parent.combination?.sources.some(source => source.id === allocation.id));
   const outstanding = transferred || allocation.receivedDate > today ? 0 : Math.max(0, allocation.amountRupees - returned);
-  const rate = outstanding > 0 ? Math.round((payment.amountRupees / outstanding) * 10000) / 100 : cashback ? Math.round((payment.amountRupees / allocation.amountRupees) * 10000) / 100 : allocation.profitPercent;
+  const rateCapital = payment.profitCapitalRupees ?? allocation.amountRupees;
+  const rate = rateCapital > 0 ? (payment.amountRupees / rateCapital * 100).toFixed(2) : null;
   let fundingSource = 'Cash';
   if (allocation.creditCardId) {
     const cards = await fetchAllRows(req, TABLES.CREDIT_CARDS);
@@ -135,7 +136,7 @@ async function profitEmail(req, partnerName, payment, allocation, allocations, c
     ['Funding source', fundingSource],
     ['Amount given date', formatDate(allocation.receivedDate)],
     ['Capital outstanding', money(outstanding)],
-    ['Rate', `${rate}%`],
+    ['Rate', rate === null ? 'Unavailable' : `${rate}%`],
   ];
   const portalUrl = `${APP_BASE_URL}/#/p/partner-${encodeURIComponent(payment.partnerId)}`;
   return `

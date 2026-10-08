@@ -110,11 +110,37 @@ function table() {
 function total() {
   return within(table()).getAllByRole("row").at(-1).textContent;
 }
+it.each([
+  [5000, 0, 11000],
+  [7000, 0, 13000],
+  [2000, 4000, 12000],
+])("uses actual paid %i plus pending %i in monthly payout", async (paid, pending, expected) => {
+  state.data.allocationSummaries = [
+    allocation("paid", "a", { expectedMonthlyProfit: 6000, profitPending: pending }),
+    allocation("unpaid", "a", { expectedMonthlyProfit: 6000, profitPending: 6000 }),
+  ];
+  state.data.profitRecords = [
+    { id: "first", allocationId: "paid", paidDate: "2026-09-01", amountRupees: 1000 },
+    { id: "second", allocationId: "paid", paidDate: "2026-09-15", amountRupees: paid - 1000 },
+    { id: "previous", allocationId: "unpaid", paidDate: "2026-08-01", amountRupees: 9000 },
+  ];
+  const user = open();
+  const currency = value => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
+  const partnerRow = within(table()).getAllByRole("row")[1];
+  expect(partnerRow.querySelector('[data-label="Monthly payout"]').textContent).toBe(currency(expected));
+  expect(partnerRow.querySelector('[data-label="Paid in month"]').textContent).toBe(currency(paid));
+  expect(partnerRow.querySelector('[data-label="Pending now"]').textContent).toBe(currency(pending + 6000));
+  expect(screen.getByText("Expected monthly payout").nextElementSibling.textContent).toBe(currency(expected));
+  await user.click(screen.getByRole("button", { name: "Expand Arun" }));
+  const payouts = [...table().querySelectorAll('[data-label="Monthly payout"]')].map(cell => cell.textContent);
+  expect(payouts).toContain(currency(paid + pending));
+  expect(payouts).toContain(currency(6000));
+});
 it("combines capital and profit by partner and keeps source/search totals aligned", async () => {
   const user = open();
-  expect(total()).toBe("Filtered total₹30,000₹6,000₹24,000₹2,400₹500₹600₹0₹500");
+  expect(total()).toBe("Filtered total₹30,000₹6,000₹24,000₹1,100₹500₹600₹0₹500");
   await user.selectOptions(screen.getByLabelText("Funding source"), "card");
-  expect(total()).toBe("Filtered total₹10,000₹2,000₹8,000₹800₹0₹0₹0₹0");
+  expect(total()).toBe("Filtered total₹10,000₹2,000₹8,000₹0₹0₹0₹0₹0");
   expect(within(table()).queryByText("Priya")).toBeNull();
   expect(
     within(screen.getByRole("region", { name: "Capital summary" })).getByText(
@@ -123,7 +149,27 @@ it("combines capital and profit by partner and keeps source/search totals aligne
   ).toBeTruthy();
   await user.selectOptions(screen.getByLabelText("Funding source"), "all");
   await user.type(screen.getByLabelText("Search partner or card"), "Priya");
-  expect(total()).toBe("Filtered total₹10,000₹2,000₹8,000₹800₹0₹300₹0₹0");
+  expect(total()).toBe("Filtered total₹10,000₹2,000₹8,000₹300₹0₹300₹0₹0");
+});
+it("shows the selected month's actual paid rate to two decimals and keeps estimates for unpaid contributions", async () => {
+  state.data.allocationSummaries = [
+    allocation("paid", "a", { amountRupees: 149999, profitPercent: 4, capitalOutstanding: 0, profitPending: 0 }),
+    allocation("unpaid", "a", { amountRupees: 150000, profitPercent: 4 }),
+  ];
+  state.data.profitRecords = [
+    { id: "one", allocationId: "paid", paidDate: "2026-09-01", amountRupees: 2000, profitCapitalRupees: 149999 },
+    { id: "two", allocationId: "paid", paidDate: "2026-09-02", amountRupees: 3000 },
+    { id: "old", allocationId: "paid", paidDate: "2026-08-01", amountRupees: 6000, profitCapitalRupees: 150000 },
+  ];
+  const user = open();
+  await user.click(screen.getByRole("button", { name: "Expand Arun" }));
+  expect(screen.getByText(/3\.33% paid/)).toBeTruthy();
+  expect(screen.getByText(/4% p\.m\./)).toBeTruthy();
+  await user.selectOptions(screen.getByLabelText("Profit month"), "2026-08");
+  expect(screen.getByText(/4\.00% paid/)).toBeTruthy();
+  await user.selectOptions(screen.getByLabelText("Profit month"), "2026-10");
+  expect(screen.queryByText(/% paid/)).toBeNull();
+  expect(screen.getAllByText(/4% p\.m\./)).toHaveLength(2);
 });
 it("uses calendar-month payments without inventing historical pending snapshots", async () => {
   const user = open();
@@ -153,11 +199,11 @@ it("expands contributions without counting combined principal as fresh money", a
     }),
   ];
   const user = open();
-  expect(total()).toBe("Filtered total₹10,000₹0₹10,000₹800₹0₹600₹0₹0");
+  expect(total()).toBe("Filtered total₹10,000₹0₹10,000₹600₹0₹600₹0₹0");
   await user.click(screen.getByRole("button", { name: "Expand Arun" }));
   expect(screen.getByText("Transferred to combined capital")).toBeTruthy();
   expect(screen.getByText("Combined balance · ₹10,000")).toBeTruthy();
-  expect(total()).toBe("Filtered total₹10,000₹0₹10,000₹800₹0₹600₹0₹0");
+  expect(total()).toBe("Filtered total₹10,000₹0₹10,000₹600₹0₹600₹0₹0");
 });
 it("shows date-based return reminders and read-only payment history", async () => {
   const user = open();

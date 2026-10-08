@@ -1,3 +1,4 @@
+import { paidRateLabel } from "../lib/profitDisplay";
 import { RecordRow } from "../components/RecordRow";
 import { EditEntryModal } from "../components/EditEntryModal";
 /**
@@ -264,7 +265,7 @@ function Pagination({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function LedgerPage() {
-  const { ledger, partners, allocationSummaries } = useStore();
+  const { ledger, partners, allocationSummaries, profitRecords } = useStore();
   const { isCFO } = useRole();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -580,7 +581,7 @@ export function LedgerPage() {
                       ) : event.partnerId}
                     </td>
                     <td className="table-cell table-cell--secondary" data-label="Allocation">
-                      {alloc ? `${fmt(alloc.amountRupees)} @ ${alloc.profitPercent}% p.m.` : "—"}
+                      {alloc ? `${fmt(alloc.amountRupees)} · ${event.eventType === "PROFIT_PAID" ? paidRateLabel(profitRecords.find(p => p.id === event.refId) ?? { amountRupees: event.amountRupees }, alloc) : `${alloc.profitPercent}% p.m. configured`}` : "—"}
                     </td>
                     <td className="table-cell" data-label="Source">
                       {alloc?.creditCard ? (

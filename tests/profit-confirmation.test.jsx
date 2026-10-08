@@ -30,15 +30,15 @@ describe('profit payment confirmations', () => {
     await vi.waitFor(() => expect(sendMail).toHaveBeenCalledOnce());
     const mail = sendMail.mock.calls[0][0];
     expect(mail.subject).toBe('Profit Payment Confirmation — CapitalOS');
-    for (const text of ['Hi Jaswanth &lt;Test&gt;,', '₹8,500', '14 Sept 2026', '01 Sept 2026', '₹8,00,000', '1.06%', card ? 'Credit Card (Travel &lt;Card&gt;)' : 'Cash']) expect(mail.html).toContain(text);
+    for (const text of ['Hi Jaswanth &lt;Test&gt;,', '₹8,500', '14 Sept 2026', '01 Sept 2026', '₹8,00,000', '0.94%', card ? 'Credit Card (Travel &lt;Card&gt;)' : 'Cash']) expect(mail.html).toContain(text);
     expect(mail.html).not.toContain('per month');
   });
 
-  it('shows the actual rate without a monthly suffix on WhatsApp, with nominal fallback', () => {
-    const options = { partnerName: 'Jaswanth', amountRupees: 8500, paidDate: '2026-09-14', capitalOutstanding: 800000, profitPercent: 3 };
+  it('shows the actual rate without a monthly suffix on WhatsApp, using contribution capital after returns', () => {
+    const options = { partnerName: 'Jaswanth', amountRupees: 8500, paidDate: '2026-09-14', capitalOutstanding: 800000, contributionAmountRupees: 900000, profitPercent: 3 };
     const message = opts => new URL(buildProfitPaymentWhatsAppLink(opts)).searchParams.get('text');
-    expect(message(options)).toContain('Rate: 1.06%');
+    expect(message(options)).toContain('Rate: 0.94%');
     expect(message(options)).not.toContain('per month');
-    expect(message({ ...options, capitalOutstanding: 0 })).toContain('Rate: 3%');
+    expect(message({ ...options, capitalOutstanding: 0 })).toContain('Rate: 0.94%');
   });
 });
