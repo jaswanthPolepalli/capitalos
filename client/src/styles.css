@@ -5403,7 +5403,12 @@ a:focus-visible {
 .cashback-badge { font-size: 12px; font-weight: 700; }
 .cashback-badge--unpaid, .cashback-badge--review { color: var(--pending); }
 .cashback-badge--paid { color: var(--incoming); }
-.cashback-list-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.cashback-list-actions { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; }
+.cashback-list-actions .button { flex: 0 0 auto; padding: 5px 10px; font-size: 12px; line-height: 20px; white-space: nowrap; }
+@media (min-width: 768px) {
+  .cashback-table .table-cell--action { width: 1%; }
+  .cashback-list-actions .button { min-height: 32px; }
+}
 .cashback-modal .form-input { width: 100%; min-height: 44px; }
 .cashback-modal .checkbox-row { min-height: 44px; }
 .profit-filter-label { display: grid; gap: 4px; font-size: 11px; color: var(--muted); }

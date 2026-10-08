@@ -67,6 +67,7 @@
   }
   .data-table .table-cell--action { display: flex; justify-content: flex-end; gap: 8px; }
   .data-table .table-cell--action > div { flex-wrap: wrap; }
+  .cashback-table .table-cell--action > .cashback-list-actions { flex-wrap: nowrap; }
   .data-table .table-cell--desktop-action { display: none; }
   .data-table .table-cell-actions { display: block; padding: 10px 0 4px; }
   .table-cell-actions__inner { display: flex; flex-wrap: wrap; gap: 8px; }
