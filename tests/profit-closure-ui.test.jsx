@@ -42,7 +42,7 @@ it('opens the warning from the payment form with a blank amount and closes witho
   closeProfit.mockResolvedValue({ amountRupees: 0 });
   render(<RecordProfitModal allocationId="a" partnerId="p" pendingAmount={6000} expectedMonthlyProfit={6000} allocationLabel="Test contribution" onClose={props.onClose} />);
   const user = userEvent.setup();
-  await user.clear(screen.getByLabelText(/Amount.*₹/));
+  await user.clear(screen.getByLabelText(/Partner \+ CFO amount.*₹/));
   await user.click(screen.getByRole('button', { name: 'Close profit without payment' }));
   expect(closeProfit).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Accept and close profit' }));
