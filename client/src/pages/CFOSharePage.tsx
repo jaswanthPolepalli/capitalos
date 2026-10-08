@@ -1,3 +1,4 @@
+import type { ProfitRecord } from '../store';
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { DataStatus } from '../components/DataStatus';
@@ -9,14 +10,20 @@ const fmt = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currenc
 
 export function CFOSharePage() {
   const { profitRecords, partners, allocations, allocationSummaries } = useStore();
+  const cashbackRecords: ProfitRecord[] = allocations.flatMap(a => {
+    const p = a.cashback;
+    return p?.status === 'paid' && p.amountRupees != null && p.combinedAmountRupees != null
+      ? [{ ...p, id: `cashback-${a.id}`, allocationId: a.id, partnerId: a.partnerId, amountRupees: p.amountRupees, notes: p.notes || '' }] : [];
+  });
+  const allRecords = [...profitRecords, ...cashbackRecords];
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = profitRecords.find(r => r.id === selectedId);
+  const selected = allRecords.find(r => r.id === selectedId);
   const contribution = selected ? allocationSummaries.find(a => a.id === selected.allocationId) : undefined;
   const selectedCapital = selected?.profitCapitalRupees ?? contribution?.amountRupees;
   const percent = (amount: number, capital: number | undefined) => capital && capital > 0 ? `${Number((amount / capital * 100).toFixed(4))}%` : '—';
   const [month, setMonth] = useState('');
   const [partnerId, setPartnerId] = useState('');
-  const records = profitRecords.filter(p => p.combinedAmountRupees !== undefined && (!month || p.paidDate.startsWith(month)) && (!partnerId || p.partnerId === partnerId))
+  const records = allRecords.filter(p => p.combinedAmountRupees !== undefined && (!month || p.paidDate.startsWith(month)) && (!partnerId || p.partnerId === partnerId))
     .sort((a, b) => b.paidDate.localeCompare(a.paidDate) || b.id.localeCompare(a.id, undefined, { numeric: true }));
   const total = records.reduce((sum, r) => sum + (r.cfoShareRupees ?? 0), 0);
 
@@ -36,7 +43,7 @@ export function CFOSharePage() {
             const capital = r.profitCapitalRupees ?? allocations.find(a => a.id === r.allocationId)?.amountRupees;
             const cfoShare = r.cfoShareRupees ?? 0;
             return <tr key={r.id} className="table-row cfo-share-page__row" onClick={() => setSelectedId(r.id)}>
-              <td className="table-cell">{formatDate(r.paidDate)}</td>
+              <td className="table-cell">{formatDate(r.paidDate)}{r.id.startsWith('cashback-') && <small className="cashback-source">Cashback</small>}</td>
               <td className="table-cell"><button type="button" className="cfo-share-page__record" aria-label={`View transaction for ${partners.find(p => p.id === r.partnerId)?.name || 'Partner'} on ${formatDate(r.paidDate)}`} onClick={e => { e.stopPropagation(); setSelectedId(r.id); }}>{partners.find(p => p.id === r.partnerId)?.name || 'Partner'}</button></td>
               <td className="table-cell">{capital === undefined ? '—' : fmt(capital)}</td>
               <td className="table-cell"><strong>{fmt(cfoShare)}</strong></td>
@@ -52,7 +59,7 @@ export function CFOSharePage() {
           <div className="modal__body">
             <p className="cfo-share-details__partner">{partners.find(p => p.id === selected.partnerId)?.name || 'Partner'}</p>
             <dl className="cfo-share-details__grid">
-              <div><dt>Profit payment date</dt><dd>{formatDate(selected.paidDate)}</dd></div>
+              <div><dt>{selected.id.startsWith('cashback-') ? 'Cashback payment date' : 'Profit payment date'}</dt><dd>{formatDate(selected.paidDate)}</dd></div>
               <div><dt>Given date</dt><dd>{contribution?.receivedDate ? formatDate(contribution.receivedDate) : '—'}</dd></div>
               <div><dt>Return date</dt><dd>{contribution?.returnDate ? formatDate(contribution.returnDate) : 'Not set'}</dd></div>
               <div><dt>Funding source</dt><dd>{contribution ? contribution.creditCard?.cardName || (contribution.creditCardId ? 'Credit card' : 'Cash') : '—'}</dd></div>

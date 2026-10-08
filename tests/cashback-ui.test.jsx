@@ -55,14 +55,15 @@ it('records and edits one payment, keeps sharing available after filter removal,
   await user.selectOptions(screen.getByLabelText('Cashback status'), 'paid');
   expect(screen.getByLabelText('Date shared with partner').value).toBe(businessToday());
   await user.type(screen.getByLabelText('Cashback amount (₹)'), '500');
-  await user.click(screen.getByRole('button', { name: 'Save cashback' }));
+  await user.click(screen.getByLabelText('No CFO share — all cashback to partner'));
+  await user.click(screen.getByRole('button', { name: /Save cashback|Record cashback payment/ }));
   expect(await screen.findByRole('link', { name: 'Share on WhatsApp' })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Done' }));
   await user.selectOptions(screen.getByLabelText('Cashback filter'), 'CB_PAID');
   await user.click(screen.getByRole('button', { name: 'Edit cashback' }));
   await user.clear(screen.getByLabelText('Cashback amount (₹)'));
   await user.type(screen.getByLabelText('Cashback amount (₹)'), '750');
-  await user.click(screen.getByRole('button', { name: 'Save cashback' }));
+  await user.click(screen.getByRole('button', { name: /Save cashback|Record cashback payment/ }));
   await user.click(await screen.findByRole('button', { name: 'Done' }));
   await act(async () => { await store.loadAll(); });
   const events = store.getLedger().filter(e => e.eventType === 'CASHBACK_PAID');
@@ -80,7 +81,7 @@ it('allows historical paid cashback without an amount and later fills it without
   await user.click(screen.getByRole('button', { name: 'Manage cashback' }));
   await user.selectOptions(screen.getByLabelText('Cashback status'), 'paid');
   expect(screen.getByLabelText('Cashback amount (₹)').required).toBe(false);
-  await user.click(screen.getByRole('button', { name: 'Save cashback' }));
+  await user.click(screen.getByRole('button', { name: /Save cashback|Record cashback payment/ }));
   expect(await screen.findByText('Marked paid · Amount not recorded. You can add it later.')).toBeTruthy();
   expect(screen.queryByRole('link', { name: 'Share on WhatsApp' })).toBeNull();
   expect(store.getLedger().find(e => e.eventType === 'CASHBACK_PAID').amountUnknown).toBe(true);
@@ -135,7 +136,7 @@ it('starts unselected transactions in review and immediately excludes peers when
   expect(within(table).getAllByText('Needs review')).toHaveLength(2);
   await user.click(within(table).getAllByRole('button',{name:'Review cashback'})[1]);
   await user.selectOptions(screen.getByLabelText('Cashback status'),'unpaid');
-  await user.click(screen.getByRole('button',{name:'Save cashback'}));
+  await user.click(screen.getByRole('button',{name:/Save cashback|Record cashback payment/}));
   await user.click(await screen.findByRole('button',{name:'Done'}));
   expect(within(table).getAllByRole('row')).toHaveLength(2);
   expect(within(table).getByText('Cashback unpaid')).toBeTruthy();
@@ -166,7 +167,7 @@ it('saves Needs review from an excluded peer, clears its link and persists in th
   const dialog=screen.getByRole('dialog');
   expect(within(dialog).getByText(/Choosing Needs review clears the unpaid selection/)).toBeTruthy();
   await user.selectOptions(screen.getByLabelText('Cashback status'),'review');
-  await user.click(screen.getByRole('button',{name:'Save cashback'}));
+  await user.click(screen.getByRole('button',{name:/Save cashback|Record cashback payment/}));
   await user.click(await screen.findByRole('button',{name:'Done'}));
   await act(async()=>{await store.loadAll();});
   await user.selectOptions(screen.getByLabelText('Cashback filter'),'CB_REVIEW');
@@ -184,7 +185,7 @@ it('explains why a paid peer cannot return to review and links to the payment wi
   await user.click(screen.getByRole('button',{name:'Manage cashback'}));
   await user.selectOptions(screen.getByLabelText('Cashback status'),'review');
   fetch.mockClear();
-  await user.click(screen.getByRole('button',{name:'Save cashback'}));
+  await user.click(screen.getByRole('button',{name:/Save cashback|Record cashback payment/}));
   expect(screen.getByRole('alert').textContent).toContain('already paid');
   expect(fetch).not.toHaveBeenCalled();
   expect(screen.queryByText('Cashback status updated.')).toBeNull();
@@ -205,12 +206,13 @@ it('warns before additional cashback, saves only after confirmation and keeps bo
   expect(screen.getByText(/Cashback is already paid for this card/)).toBeTruthy();
   expect(screen.getByRole('link',{name:'View existing cashback transaction 1'}).getAttribute('href')).toContain('cashback=a0');
   await user.type(screen.getByLabelText('Cashback amount (₹)'),'700');
+  await user.click(screen.getByLabelText('No CFO share — all cashback to partner'));
   fetch.mockClear();
-  await user.click(screen.getByRole('button',{name:'Save cashback'}));
+  await user.click(screen.getByRole('button',{name:/Save cashback|Record cashback payment/}));
   expect(screen.getByRole('alert').textContent).toContain('confirm this additional cashback');
   expect(fetch).not.toHaveBeenCalled();
   await user.click(screen.getByLabelText('I confirm this additional cashback payment'));
-  await user.click(screen.getByRole('button',{name:'Save cashback'}));
+  await user.click(screen.getByRole('button',{name:/Save cashback|Record cashback payment/}));
   await user.click(await screen.findByRole('button',{name:'Done'}));
   await act(async()=>{await store.loadAll();});
   const summaries=store.getAllocationSummaries();
@@ -222,4 +224,27 @@ it('warns before additional cashback, saves only after confirmation and keeps bo
   expect(store.getLedger().filter(e=>e.eventType==='CASHBACK_PAID')).toHaveLength(2);
   expect(store.getPartnerSummaries()[0].totalCashbackPaid).toBe(1200);
   expect(buildStatement(store.getLedger(),'p','2025-01-01',businessToday()).cashbackPaid).toBe(1200);
+});
+
+it('pays directly from the list with an adjusted cashback split and persists payment details', async () => {
+  const user = open();
+  await user.selectOptions(screen.getByLabelText('Payment view'), 'cashback');
+  await user.selectOptions(screen.getByLabelText('Cashback filter'), 'CB_UNPAID');
+  await user.click(screen.getByRole('button', { name: 'Pay cashback' }));
+  expect(screen.getByLabelText('Cashback status').value).toBe('paid');
+  await user.type(screen.getByLabelText('Cashback amount (₹)'), '700');
+  expect(screen.getByText('Partner share: ₹500')).toBeTruthy();
+  expect(screen.getByText('CFO share: ₹200')).toBeTruthy();
+  await user.click(screen.getByLabelText('Change cashback % or amount'));
+  await user.clear(screen.getByLabelText('Or partner amount (₹)'));
+  await user.type(screen.getByLabelText('Or partner amount (₹)'), '600');
+  await user.type(screen.getByLabelText('Payment account / method (optional)'), 'Bank transfer');
+  await user.click(screen.getByRole('button', { name: 'Record cashback payment' }));
+  await screen.findByRole('button', { name: 'Done' });
+  await act(async () => { await store.loadAll(); });
+  expect(store.getAllocations()[0].cashback).toMatchObject({
+    amountRupees: 600, combinedAmountRupees: 700, cfoShareRupees: 100,
+    partnerAmountRupees: 600, paymentMethod: 'Bank transfer'
+  });
+  expect(store.getLedger().find(e => e.eventType === 'CASHBACK_PAID').amountRupees).toBe(600);
 });

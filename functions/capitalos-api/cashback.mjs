@@ -1,3 +1,4 @@
+import { splitProfit } from './profit-sharing.mjs';
 /** Manual cashback selection per card/calendar month. Financial history is never rewritten.
  * A selection decision lives on one allocation, so selecting/clearing needs one audited write.
  * The latest decision supersedes prior unpaid choices, including after clearing a selection.
@@ -64,12 +65,17 @@ export function validateCashback(input, allocation, today) {
   const otherPaid = allocation.cashbackOtherPaidAllocationIds || [];
   const confirmed = input.confirmedCashbackAllocationIds;
   if (allocation.cashback?.status !== 'paid' && otherPaid.length && (!Array.isArray(confirmed) || JSON.stringify([...confirmed].sort()) !== JSON.stringify([...otherPaid].sort()))) throw new Error('Cashback is already paid on another transaction for this card and month. Review the existing payments and confirm this additional cashback. If the list has changed, refresh and review it again.');
+  const split = input.combinedAmountRupees != null
+    ? splitProfit(input.combinedAmountRupees, input.partnerProfitPercent, allocation.amountRupees, input.noCfoSplit ?? false, input.partnerAmountRupees)
+    : null;
+  const paymentMethod = String(input.paymentMethod || '').trim();
+  if (paymentMethod.length > 200) throw new Error('Payment account/method must be 200 characters or fewer.');
   const unknownAmount = input.amountRupees == null && allocation.receivedDate < today;
   if (!unknownAmount && (typeof input.amountRupees !== 'number' || !Number.isSafeInteger(input.amountRupees) || input.amountRupees <= 0)) throw new Error('Enter a positive whole-rupee cashback amount.');
   const date = input.paidDate;
   if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T00:00:00Z`)) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) throw new Error('Enter a valid cashback payment date.');
   if (date < allocation.receivedDate || date > today) throw new Error('Cashback date must be between the contribution date and today.');
-  return { status: 'paid', amountRupees: unknownAmount ? null : input.amountRupees, paidDate: date, notes };
+  return { status: 'paid', amountRupees: unknownAmount ? null : input.amountRupees, ...split, paidDate: date, notes, ...(paymentMethod ? { paymentMethod } : {}) };
 }
 
 export function cashbackTotals(allocations) {

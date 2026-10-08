@@ -34,6 +34,7 @@ export function CashbackList({ entries, canEdit }: { entries: AllocationSummary[
           <td className="table-cell table-cell--money" data-label="Amount shared">{payment?.status === 'paid' ? payment.amountRupees == null ? 'Amount not recorded' : `₹${payment.amountRupees.toLocaleString('en-IN')}` : '—'}</td>
           <td className="table-cell" data-label="Paid on">{payment?.status === 'paid' ? formatDate(payment.paidDate) : '—'}</td>
           <td className="table-cell table-cell--action" data-label="Actions"><div className="cashback-list-actions">
+            {canEdit && status !== 'paid' && <button className="button button--primary" type="button" onClick={() => setEditing({ ...a, cashbackEligibility: 'paid' })}>Pay cashback</button>}
             {canEdit && <button className="button button--secondary" type="button" onClick={() => setEditing(a)}>{status === 'paid' ? 'Edit cashback' : status === 'review' ? 'Review cashback' : 'Manage cashback'}</button>}
             {payment?.status === 'paid' && <Link className="button button--secondary" to={`/ledger?highlight=l-cb-${a.id}`}>Ledger</Link>}
           </div></td>

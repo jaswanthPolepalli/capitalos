@@ -61,3 +61,21 @@ it('opens the transaction details from the row and supports keyboard dismissal',
   await user.click(screen.getByRole('button', { name: 'Close transaction details' }));
   expect(screen.queryByRole('dialog')).toBeNull();
 });
+
+it('includes cashback CFO shares and identifies their payment details', async () => {
+  const data = baseData();
+  data.COS_Allocations[0].credit_card_id = 'c';
+  const h = createApiHarness(data);
+  await h.request('PATCH', 'allocations/a/cashback', {
+    status: 'paid', amountRupees: 700, combinedAmountRupees: 700, paidDate: '2026-10-08'
+  });
+  vi.stubGlobal('fetch', vi.fn(async url => new Response(JSON.stringify(await h.request('GET', String(url).replace('/server/capitalos-api/', ''))))));
+  await store.loadAll();
+  render(<MemoryRouter><CFOSharePage /></MemoryRouter>);
+  const table = screen.getByRole('table', { name: 'CFO share transactions' });
+  expect(within(table).getByText('Cashback')).toBeTruthy();
+  await userEvent.setup().click(within(table).getByText('₹200'));
+  const dialog = screen.getByRole('dialog');
+  expect(within(dialog).getByText('Cashback payment date')).toBeTruthy();
+  expect(within(dialog).getByText('₹500')).toBeTruthy();
+});

@@ -1,8 +1,9 @@
+import type { ProfitSplit } from './profit-sharing.mjs';
 export type CashbackStatus = 'review' | 'unpaid' | 'paid' | 'not_applicable';
 type CashbackMetadata = { notes?: string; updatedAt?: string; createdAt?: string; selectionUpdatedAt?: string; individualStatus?: boolean };
-export type Cashback = CashbackMetadata & ({ status: Exclude<CashbackStatus, 'paid'> } | { status: 'paid'; amountRupees: number | null; paidDate: string });
+export type Cashback = CashbackMetadata & ({ status: Exclude<CashbackStatus, 'paid'> } | { status: 'paid'; amountRupees: number | null; paidDate: string; paymentMethod?: string } & Partial<Omit<ProfitSplit, 'amountRupees'>>);
 export type CashbackSelection = { cashbackOtherPaidAllocationIds?: string[]; cashbackEligibility?: string; cashbackSelectedAllocationId?: string | null; cashbackSelectionStatus?: string | null; cashbackSelectionUpdatedAt?: string | null };
-type Allocation = CashbackSelection & { id?: string; creditCardId?: string | null; combination?: unknown; cashback?: Cashback | null };
+type Allocation = CashbackSelection & { id?: string; amountRupees?: number; creditCardId?: string | null; combination?: unknown; cashback?: Cashback | null };
 export function cashbackStatus(allocation: Allocation): CashbackStatus;
 export function validateCashback(input: unknown, allocation: Allocation & { receivedDate: string }, today: string): Cashback;
 export function prepareCashback(input: unknown, allocation: Allocation & { receivedDate: string }, today: string, now?: string): Cashback;

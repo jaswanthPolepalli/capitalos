@@ -170,3 +170,25 @@ it('rechecks all other paid transactions instead of accepting a stale confirmati
   expect((await h.request('PATCH','allocations/extra/cashback',{...payment,confirmedCashbackAllocationIds:['another','a']})).status).toBe('success');
   expect((await h.request('GET','allocations')).data.filter(a=>cashbackStatus(a)==='paid')).toHaveLength(3);
 });
+
+it('computes cashback shares on the server and preserves overrides through reload', async () => {
+  const h = createApiHarness(seed());
+  for (const [options, partner, cfo] of [
+    [{}, 500, 200],
+    [{noCfoSplit:true}, 700, 0],
+    [{partnerAmountRupees:600}, 600, 100],
+    [{partnerProfitPercent:4}, 400, 300],
+  ]) {
+    const result = await h.request('PATCH', 'allocations/a/cashback', {
+      ...payment, combinedAmountRupees:700, cfoShareRupees:9999, ...options, paymentMethod:'Cash'
+    });
+    expect(result.status).toBe('success');
+    expect((await h.request('GET', 'allocations')).data[0].cashback).toMatchObject({
+      amountRupees:partner, cfoShareRupees:cfo, combinedAmountRupees:700, paymentMethod:'Cash'
+    });
+  }
+  const result = await h.request('PATCH', 'allocations/a/cashback', {
+    ...payment, combinedAmountRupees:700, partnerAmountRupees:701
+  });
+  expect(result.status).toBe('error');
+});
