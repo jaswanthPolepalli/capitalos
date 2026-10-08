@@ -1,5 +1,7 @@
 # CapitalOS — Deployment & Project Reference
 
+**Latest release — 8 October 2026:** All pending local changes are combined with the previous October 8 releases and deployed to the existing live Development app. CFO Share and combined partner/CFO payment flows are available. Fresh 743-record backups, isolated restoration and rollback rehearsal, 916 tests, hosted checks and browser verification passed. See [release evidence and rollback](docs/deployment-cfo-share-2026-10-08.md).
+
 **Latest release — 8 October 2026:** Closing profit now provides a transaction-level email confirmation and WhatsApp draft with current/earlier profit, paid cashback, total received and actual total return. Deployed after verified 743-record backups, isolated rollback rehearsal, 886 tests and hosted checks. See [release evidence and rollback](docs/deployment-closure-messages-2026-10-08.md).
 
 **Latest release — 8 October 2026:** Reports now supports PDF download with oldest-first cashback dates. Profit can be closed without payment after an explicit waiver warning, with audited zero-amount history and optional recurrence. API, both workers and frontend deployed after fresh 743-record backups, isolated restoration/rollback rehearsal, 879 tests and hosted PDF/API verification. See [release evidence and rollback considerations](docs/deployment-pdf-profit-close-2026-10-08.md).
