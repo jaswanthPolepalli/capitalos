@@ -111,7 +111,7 @@ function ConfirmDeleteModal({
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
               <EventIcon type={event.eventType} />
               <span style={{ fontWeight: 700, color: EVENT_TONE[event.eventType] }}>
-                {EVENT_LABELS[event.eventType]}
+                {event.eventType === 'PROFIT_PAID' && event.amountRupees === 0 && event.notes.startsWith('Profit closed without payment') ? 'Profit closed' : EVENT_LABELS[event.eventType]}
               </span>
             </div>
             <strong>{event.amountUnknown ? "Amount not recorded" : fmt(event.amountRupees)}</strong> &nbsp;·&nbsp; {formatDate(event.date)}
@@ -569,7 +569,7 @@ export function LedgerPage() {
                       <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                         <EventIcon type={event.eventType} />
                         <span style={{ color: EVENT_TONE[event.eventType], fontWeight: 600, fontSize: 12 }}>
-                          {EVENT_LABELS[event.eventType]}
+                          {event.eventType === 'PROFIT_PAID' && event.amountRupees === 0 && event.notes.startsWith('Profit closed without payment') ? 'Profit closed' : EVENT_LABELS[event.eventType]}
                         </span>
                       </div>
                     </td>

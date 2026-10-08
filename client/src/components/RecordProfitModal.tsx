@@ -1,5 +1,6 @@
 import { ProfitSplitPreview, profitPreview, profitOptions } from './ProfitSplitPreview';
 import { combinedForPartner } from '../../../functions/capitalos-api/profit-sharing.mjs';
+import { CloseProfitPanel } from './CloseProfitPanel';
 import { CheckCircle2, MessageCircle, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { buildProfitPaymentWhatsAppLink } from "../lib/whatsapp";
@@ -41,6 +42,7 @@ export function RecordProfitModal({
     paidDate: today,
     notes: "",
   });
+  const [closing, setClosing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Post-submit state for WhatsApp share
@@ -160,6 +162,8 @@ export function RecordProfitModal({
     setErrors((e) => ({ ...e, [f]: undefined as unknown as string }));
   };
 
+  if (closing) return <CloseProfitPanel allocationId={allocationId} partnerId={partnerId} pendingAmount={pendingAmount} partnerName={partnerName} canRecur={canRecur && capitalOutstanding !== 0} embedded={embedded} onCancel={() => setClosing(false)} onClose={onClose} />;
+
   // ── Post-submit: show WhatsApp share option ──
   if (submitted) {
     const waLink = buildProfitPaymentWhatsAppLink({
@@ -251,6 +255,7 @@ export function RecordProfitModal({
           <button className="icon-button" onClick={onClose} type="button" aria-label="Close profit form"><X size={18} /></button>
         </div>
         <form className="modal__body" onSubmit={handleSubmit} noValidate>
+          {pendingAmount > 0 && <button type="button" className="button button--secondary" onClick={() => setClosing(true)}>Close profit without payment</button>}
           {errors.submit && <p className="form-error" role="alert">{errors.submit}</p>}
           <div className="form-hint">
             Allocation: <strong>{allocationLabel}</strong>

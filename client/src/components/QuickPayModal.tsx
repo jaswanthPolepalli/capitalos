@@ -1,5 +1,6 @@
 import { ProfitSplitPreview, profitPreview, profitOptions } from './ProfitSplitPreview';
 import { combinedForPartner } from '../../../functions/capitalos-api/profit-sharing.mjs';
+import { CloseProfitPanel } from './CloseProfitPanel';
 /**
  * QuickPayModal — F3: Quick-Pay from Dashboard
  *
@@ -52,6 +53,7 @@ export function QuickPayModal({
     notes: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [closing, setClosing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const amountNum = Number(form.amountStr);
@@ -107,6 +109,8 @@ export function QuickPayModal({
   const typeLabel = target.payType === "profit" ? "Profit Payment" : "Capital Return";
   const typeColor = target.payType === "profit" ? "var(--outgoing)" : "var(--pending)";
 
+  if (closing) return <CloseProfitPanel allocationId={target.allocationId} partnerId={target.partnerId} pendingAmount={target.pendingAmount} partnerName={target.partnerName} canRecur={false} onCancel={() => setClosing(false)} onClose={onClose} />;
+
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="qp-title">
       <div className="modal">
@@ -121,6 +125,7 @@ export function QuickPayModal({
         </div>
 
         <form className="modal__body" onSubmit={handleSubmit} noValidate>
+          {target.payType === "profit" && target.pendingAmount > 0 && <button type="button" className="button button--secondary" disabled={saving} onClick={() => setClosing(true)}>Close profit without payment</button>}
           {/* Context */}
           <div className="form-hint" style={{ marginBottom: 14 }}>
             <strong>{target.partnerName}</strong>

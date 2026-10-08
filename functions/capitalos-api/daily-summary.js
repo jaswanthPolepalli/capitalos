@@ -1,5 +1,6 @@
 'use strict';
 const { createHash } = require('node:crypto');
+const { latestProfitPayment } = require('./profit-cycles.mjs');
 const { decode } = require('./combinations.mjs');
 const { pendingProfit, paymentMetadata } = require('./payment-groups.mjs');
 const { cashbackStatus, monthlyCashback } = require('./cashback.mjs');
@@ -69,6 +70,8 @@ function buildDailySummary(data, window = dailyWindow()) {
     const remaining = a.amountRupees - sum(rs.map(r => r.amountRupees));
     if (remaining < 0) throw new Error('Capital returns exceed the contribution; summary not sent.');
     const outstanding = transferred.has(a.id) ? 0 : remaining;
+    const latest = latestProfitPayment(profits.filter(p => p.allocationId === a.id));
+    if (latest?.amountRupees === 0 && latest.notes.startsWith('Profit closed without payment')) row.closedWithoutPayment = true;
     row.amount = sum([row.amount, outstanding]);
     row.profit = sum([row.profit, money(pendingProfit(a, allocations, profits, window.date, returns))]);
     // Settled contributions must not contribute stale dates or reorder active balances.

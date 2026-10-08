@@ -18,7 +18,7 @@ export function pendingProfit(a, allocations, profits, today, returns = []) {
   const total = records.reduce((sum, p) => sum + p.amountRupees, 0);
   const cycle = Math.round(a.amountRupees * a.profitPercent / 100);
   const latest = latestProfitPayment(records);
-  let pending = total === 0 ? cycle : recurringProfitAmount(a, latest, returns, today) ?? 0;
+  let pending = total === 0 && !records.some(p => p.notes.startsWith('Profit closed without payment')) ? cycle : recurringProfitAmount(a, latest, returns, today) ?? 0;
   if (total > 0 && latest?.notes.includes('Partial payment')) {
     const amount = latest.notes.match(/Partial payment · Remaining: ₹([\d,]+)/);
     const percent = latest.notes.match(/Partial payment · Remaining %: ([\d.]+)%/);
@@ -26,6 +26,7 @@ export function pendingProfit(a, allocations, profits, today, returns = []) {
   }
   const source = allocations.flatMap(parent => parent.combination?.sources || []).find(s => s.id === a.id);
   if (source) pending = Math.max(0, source.pending - records.filter(p => !source.profitRecordIds.includes(p.id)).reduce((sum, p) => sum + p.amountRupees, 0));
+  if (source && records.some(p => p.amountRupees === 0 && p.notes.startsWith('Profit closed without payment') && !source.profitRecordIds.includes(p.id))) pending = 0;
   if (a.receivedDate > today || (a.combination && today < firstCombinedProfitDate(a.receivedDate))) return 0;
   return pending;
 }

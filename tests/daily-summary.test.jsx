@@ -242,3 +242,8 @@ it('sorts unbilled cards by their latest outstanding spend, ignoring later payme
   rows = buildDailySummary(dataset(s), window).rows;
   expect(rows.map(r => r.cardId)).toEqual(['new-card', 'c']);
 });
+it('shows a no-payment closure as closed rather than profit paid in the report data', () => {
+  const s = seed();
+  s.COS_Profits = [{ ROWID: 'closed', allocation_id: 'a', partner_id: 'p', amount_rupees: 0, paid_date: '2026-10-06', notes: 'Profit closed without payment · Waived pending: ₹300' }];
+  expect(buildDailySummary(dataset(s), window).rows[0]).toMatchObject({ profit: 0, closedWithoutPayment: true });
+});

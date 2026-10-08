@@ -1,4 +1,5 @@
 import { splitProfit } from '../../../functions/capitalos-api/profit-sharing.mjs';
+import { prepareProfitClosure } from '../../../functions/capitalos-api/profit-closure.mjs';
 import { prepareCashback, monthlyCashback } from '../../../functions/capitalos-api/cashback.mjs';
 /**
  * mockFetch — intercepts all /server/capitalos-api/* fetch calls in dev mode.
@@ -159,6 +160,15 @@ async function mockFetch(
   const query = new URL(url, window.location.origin).searchParams;
   const tableData = store[table];
 
+  if (table === 'profit-records' && id === 'close' && method === 'POST') {
+    try {
+      const input = JSON.parse(String(init?.body || '{}'));
+      const entry = prepareProfitClosure(input, active('allocations') as unknown as CapitalAllocation[], active('profit-records') as unknown as ProfitRecord[], active('capital-returns') as unknown as CapitalReturn[], businessToday());
+      const record = { ...entry, id: nextMockId(), createdAt: new Date().toISOString() };
+      store['profit-records']!.push(record);
+      return ok(record);
+    } catch (error) { return new Response(JSON.stringify({ status: 'error', message: error instanceof Error ? error.message : 'Unable to close profit.' }), { status: 400 }); }
+  }
   if (table === 'daily-summary' && id === 'send' && method === 'POST') return ok({ status: 'mock' });
   if (table === 'daily-summary' && id === 'download' && method === 'POST') return ok({ status: 'mock' });
 

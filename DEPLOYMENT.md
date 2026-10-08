@@ -1,5 +1,11 @@
 # CapitalOS — Deployment & Project Reference
 
+**Latest release — 8 October 2026:** Closing profit now provides a transaction-level email confirmation and WhatsApp draft with current/earlier profit, paid cashback, total received and actual total return. Deployed after verified 743-record backups, isolated rollback rehearsal, 886 tests and hosted checks. See [release evidence and rollback](docs/deployment-closure-messages-2026-10-08.md).
+
+**Latest release — 8 October 2026:** Reports now supports PDF download with oldest-first cashback dates. Profit can be closed without payment after an explicit waiver warning, with audited zero-amount history and optional recurrence. API, both workers and frontend deployed after fresh 743-record backups, isolated restoration/rollback rehearsal, 879 tests and hosted PDF/API verification. See [release evidence and rollback considerations](docs/deployment-pdf-profit-close-2026-10-08.md).
+
+**Latest release — 8 October 2026:** Monthly payouts now use actual paid plus remaining pending profit, including partial carryover and recurrence. Paid histories and confirmations show actual paid rates. API and frontend deployed after fresh 743-record backups, isolated restoration and rollback rehearsal, 859 tests and hosted verification. See [release evidence and rollback](docs/deployment-profit-consistency-2026-10-08.md).
+
 **Latest correction — 7 October 2026:** Daily PDFs hide zero-capital rows, show confirmed due dates only for outstanding contributions, and order unbilled cards by spending date oldest-first. API and daily worker deployed after fresh 655-record backups, recovery restoration and rollback rehearsal, 850 tests and hosted checks. See [release evidence and rollback](docs/deployment-summary-active-order-2026-10-07.md).
 
 **Latest release — 7 October 2026:** Daily PDFs now separate confirmed billed balances from unbilled spending for the same card, with pending profit in the corresponding row and distinct-card totals. API and daily worker deployed after fresh 653-record backups, verified recovery restoration and rollback rehearsal, 848 tests and hosted PDF/API checks. See [release evidence and rollback](docs/deployment-billed-unbilled-summary-2026-10-07.md).

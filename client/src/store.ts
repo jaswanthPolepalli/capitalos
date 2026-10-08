@@ -487,7 +487,7 @@ export function getAllocationSummaries(): AllocationSummary[] {
     const isPartiallyPaid = !!latestProfitRec?.notes?.includes("Partial payment");
 
     const profitPending = pendingProfit(a, allocations, profitRecords, today, capitalReturns);
-    const nextMonthProfit = !owner && latestProfitRec?.paidDate.slice(0, 7) === today.slice(0, 7) && totalProfitPaid > 0 && !isPartiallyPaid && isRecurring ? expectedMonthlyProfit : 0;
+    const nextMonthProfit = !owner && latestProfitRec?.paidDate.slice(0, 7) === today.slice(0, 7) && (totalProfitPaid > 0 || latestProfitRec.notes.startsWith("Profit closed without payment")) && !isPartiallyPaid && isRecurring ? expectedMonthlyProfit : 0;
 
     const profitAccrued = profitPending + totalProfitPaid;
 
@@ -734,6 +734,15 @@ export interface AddProfitRecordInput {
   amountRupees: number;
   paidDate: string;
   notes: string;
+}
+
+export async function closeProfit(input: { allocationId: string; partnerId: string; expectedPending: number; recur: boolean; confirmed: true }): Promise<ProfitRecord & { confirmation?: { message: string; phone: string; emailStatus: string } }> {
+  const record = await apiPost<ProfitRecord & { confirmation?: { message: string; phone: string; emailStatus: string } }>('profit-records/close', input);
+  profitRecords = [...profitRecords, record];
+  ledger = [...ledger, { id: `l-pr-${record.id}`, eventType: 'PROFIT_PAID', partnerId: record.partnerId, allocationId: record.allocationId, refId: record.id, amountRupees: 0, date: record.paidDate, createdAt: record.createdAt || new Date().toISOString(), notes: record.notes }];
+  notify();
+  await loadAll();
+  return record;
 }
 
 export async function addProfitRecord(input: AddProfitRecordInput): Promise<ProfitRecord> {
