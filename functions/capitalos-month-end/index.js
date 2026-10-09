@@ -7,6 +7,7 @@ const { monthEndWindow, renderStatement, sendMonthlyStatements } = require('./sh
 module.exports = async (_jobRequest, context) => {
   // This private Job Function has no browser/API route and is disabled in the
   // checked-in configuration. Local/mock runs never initialize SMTP or Catalyst.
+  if (process.env.CAPITALOS_MAINTENANCE === 'true' || process.env.CAPITALOS_RECOVERY === 'true') return context.closeWithSuccess();
   if (process.env.MONTH_END_EMAILS_ENABLED !== 'true' || process.env.VITE_USE_MOCK === 'true' || process.env.CAPITALOS_MOCK === 'true') return context.closeWithSuccess();
   const now = new Date();
   if (!monthEndWindow(now).due) return context.closeWithSuccess();

@@ -38,21 +38,23 @@ const importsReady = import('./imports.mjs').then(module => { importTools = modu
 let combinations;
 const combinationsReady = import('./combinations.mjs').then(module => { combinations = module; });
 
-// ── Gmail SMTP transporter ────────────────────────────────────────────────────
-// Uses Gmail App Password — no domain verification required.
-const GMAIL_USER = "jackgun9@gmail.com";
-const GMAIL_APP_PASS = "bnoi thdv bfez owqv";
-
-const smtpTransporter = nodemailer.createTransport({
-  service: "gmail",
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-  auth: {
-    user: GMAIL_USER,
-    pass: GMAIL_APP_PASS,
+// Runtime secrets stay in Catalyst configuration, never in the deployed source.
+const GMAIL_USER = process.env.SMTP_USER;
+const smtpTransporter = {
+  async sendMail(mail) {
+    if (process.env.CAPITALOS_EMAILS_ENABLED !== 'true' || process.env.CAPITALOS_RECOVERY === 'true' || process.env.CAPITALOS_MAINTENANCE === 'true') {
+      throw new Error('Email is disabled for this environment.');
+    }
+    const password = process.env.SMTP_APP_PASSWORD;
+    if (!GMAIL_USER || !password) throw new Error('SMTP runtime configuration is missing.');
+    const transport = nodemailer.createTransport({
+      service: 'gmail', connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
+      auth: { user: GMAIL_USER, pass: password },
+    });
+    try { return await transport.sendMail(mail); }
+    finally { transport.close?.(); }
   },
-});
+};
 
 // ── Email helper ─────────────────────────────────────────────────────────────
 async function sendPartnerEmail(req, partnerId, subject, htmlBody) {
@@ -436,6 +438,19 @@ module.exports = async function(req, res) {
   var path = url.split("?")[0].replace(/^\/+/, "");
   const query = new URLSearchParams(url.split("?")[1] || "");
   var method = req.method || "GET";
+
+  // These guards run before body parsing, datastore access, and any email side effect.
+  if (path === 'release-status' && method === 'GET') {
+    return ok(res, { version: 1, maintenance: process.env.CAPITALOS_MAINTENANCE === 'true',
+      recovery: process.env.CAPITALOS_RECOVERY === 'true',
+      writesBlocked: process.env.CAPITALOS_MAINTENANCE === 'true' || process.env.CAPITALOS_RECOVERY === 'true',
+      emailEnabled: process.env.CAPITALOS_EMAILS_ENABLED === 'true' && process.env.CAPITALOS_RECOVERY !== 'true' && process.env.CAPITALOS_MAINTENANCE !== 'true',
+      smtpConfigured: !!(process.env.SMTP_USER && process.env.SMTP_APP_PASSWORD) });
+  }
+  if (!['GET', 'HEAD'].includes(method) && (process.env.CAPITALOS_MAINTENANCE === 'true' || process.env.CAPITALOS_RECOVERY === 'true')) {
+    res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '60', 'Access-Control-Allow-Origin': '*' });
+    return res.end(JSON.stringify({ status: 'error', message: 'Maintenance in progress. No changes were saved. Please retry later.' }));
+  }
 
   try {
     if (path === 'profit-records/close' && method === 'POST') {

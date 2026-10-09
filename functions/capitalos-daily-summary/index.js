@@ -5,6 +5,7 @@ const { dailyWindow, deliverSummary } = require('./shared/daily-summary.js');
 const { renderDailySummary } = require('./shared/daily-summary-pdf.js');
 
 module.exports = async (_request, context) => {
+  if (process.env.CAPITALOS_MAINTENANCE === 'true' || process.env.CAPITALOS_RECOVERY === 'true') return context.closeWithSuccess();
   if (process.env.DAILY_SUMMARY_EMAILS_ENABLED !== 'true' || process.env.CAPITALOS_MOCK === 'true' || process.env.VITE_USE_MOCK === 'true') return context.closeWithSuccess();
   const now = new Date();
   if (!dailyWindow(now).due) return context.closeWithSuccess();

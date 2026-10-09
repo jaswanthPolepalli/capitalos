@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 
-export function createApiHarness(seed = {}, fail, sendMail) {
+export function createApiHarness(seed = {}, fail, sendMail, environment = {}) {
   const db = Object.fromEntries(['COS_Partners', 'COS_Allocations', 'COS_Returns', 'COS_Profits', 'COS_CreditCards', 'COS_Activity', 'COS_Reminders', 'COS_Imports'].map(name => [name, structuredClone(seed[name] || [])]));
   const calls = [];
   let counter = 10000;
@@ -36,13 +36,15 @@ export function createApiHarness(seed = {}, fail, sendMail) {
   mod.filename = filename; mod.paths = Module._nodeModulePaths(dirname(filename));
   const realRequire = createRequire(filename);
   mod.require = name => name === 'zcatalyst-sdk-node' ? { initialize: () => app } : name === 'nodemailer' ? { createTransport: () => ({ sendMail: sendMail || (async () => { throw new Error('Tests must not send mail'); }) }) } : realRequire(name);
-  mod._compile(readFileSync(filename, 'utf8'), filename);
+  // Per-harness synthetic runtime values; never use actual SMTP credentials in tests.
+  const env = { SMTP_USER: 'sender@example.test', SMTP_APP_PASSWORD: ['synthetic', 'password'].join('-'), CAPITALOS_EMAILS_ENABLED: 'true', ...environment };
+  mod._compile('const process = { env: new Proxy(global.process.env, { get(target, key) { const overrides = ' + JSON.stringify(env) + '; return Object.hasOwn(overrides, key) ? overrides[key] : target[key]; } }) };\n' + readFileSync(filename, 'utf8'), filename);
   async function request(method, url, body) {
     const req = Readable.from(body === undefined ? [] : [JSON.stringify(body)]); req.method = method; req.url = url; req.headers = {};
     let status = 200, payload;
     const res = { writeHead(code) { status = code; }, end(text) { payload = text ? JSON.parse(text) : undefined; } };
     await mod.exports(req, res);
-    return { status, ...payload };
+    return { httpStatus: status, status, ...payload };
   }
   return { request, db, calls, table };
 }

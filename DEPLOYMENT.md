@@ -265,6 +265,11 @@ This runs in order:
 
 ## Deploy Commands
 
+### Guarded automation
+
+`npm run deploy` prints the reusable release plan without hosted actions. See [deployment automation](docs/deployment-automation.md) for execution, supported scopes, required maintenance/isolation hooks, and guardrail behavior. Initial setup and a supervised hosted qualification are still required; this does not replace either mandatory release gate.
+
+
 Run these commands only after completing the [mandatory backup gate](#mandatory-backup-gate) and the validation gate above.
 
 ### Prerequisites

@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
-it.each(['disabled', 'VITE_USE_MOCK', 'CAPITALOS_MOCK', 'wrong-day'])('does not initialize datastore or SMTP for %s', async condition => {
+it.each(['disabled', 'VITE_USE_MOCK', 'CAPITALOS_MOCK', 'wrong-day', 'CAPITALOS_MAINTENANCE', 'CAPITALOS_RECOVERY'])('does not initialize datastore or SMTP for %s', async condition => {
   if (condition === 'disabled') vi.stubEnv('MONTH_END_EMAILS_ENABLED', 'false');
   else if (condition === 'wrong-day') vi.setSystemTime(new Date('2026-09-29T04:30:00Z'));
   else vi.stubEnv(condition, 'true');

@@ -1,0 +1,15 @@
+{
+  "environment": "Development",
+  "project": "71834000000017016",
+  "recovery_project": "71834000000073259",
+  "backup_root": "/absolute/private/durable/CapitalOS-backups",
+  "recovery_baseline": "/absolute/private/previous-verified-release",
+  "previous_source_commit": "REPLACE_WITH_VERIFIED_DEPLOYED_COMMIT",
+  "hooks": {
+    "quiesce": [],
+    "assert_quiesced": [],
+    "resume": [],
+    "isolation": [],
+    "behavior": []
+  }
+}

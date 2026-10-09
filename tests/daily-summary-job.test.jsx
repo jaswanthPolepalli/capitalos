@@ -24,7 +24,7 @@ beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {}); vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
-it.each(['disabled', 'early', 'CAPITALOS_MOCK', 'VITE_USE_MOCK'])('does not initialize SMTP or the datastore for %s', async mode => {
+it.each(['disabled', 'early', 'CAPITALOS_MOCK', 'VITE_USE_MOCK', 'CAPITALOS_MAINTENANCE', 'CAPITALOS_RECOVERY'])('does not initialize SMTP or the datastore for %s', async mode => {
   if (mode === 'disabled') vi.stubEnv('DAILY_SUMMARY_EMAILS_ENABLED', 'false');
   else if (mode === 'early') vi.setSystemTime(new Date('2026-10-06T17:29:59Z'));
   else vi.stubEnv(mode, 'true');
