@@ -366,6 +366,36 @@ class Guards(unittest.TestCase):
             expected['Partners'] = [{'column_name': 'ROWID', 'data_type': 'bigint'}]
             audit.check_template_references(components, expected)
 
+    def test_cli_root_resolves_from_executable_not_node_version(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            catalyst = self.load_helper('catalyst', root)
+            installed = root / 'global/lib/node_modules'
+            binary = installed / 'zcatalyst-cli/lib/bin/catalyst.js'
+            binary.parent.mkdir(parents=True)
+            binary.write_text('#!/usr/bin/env node')
+            with patch.object(catalyst.shutil, 'which', return_value=str(binary)), \
+                 patch.object(catalyst.subprocess, 'check_output',
+                              side_effect=AssertionError('npm must not be consulted')):
+                # cli_root resolves symlinks (/var -> /private/var on macOS).
+                self.assertEqual(catalyst.cli_root(), installed.resolve())
+
+    def test_cli_root_falls_back_to_npm_and_reports_missing_cli(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            catalyst = self.load_helper('catalyst', root)
+            installed = root / 'node_modules'
+            (installed / 'zcatalyst-cli').mkdir(parents=True)
+            with patch.object(catalyst.shutil, 'which', return_value=None), \
+                 patch.object(catalyst.subprocess, 'check_output', return_value=str(installed) + '\n'):
+                self.assertEqual(catalyst.cli_root(), installed)
+            empty = root / 'empty'
+            empty.mkdir()
+            with patch.object(catalyst.shutil, 'which', return_value=None), \
+                 patch.object(catalyst.subprocess, 'check_output', return_value=str(empty) + '\n'):
+                with self.assertRaisesRegex(RuntimeError, 'Catalyst CLI not found'):
+                    catalyst.cli_root()
+
     def test_all_release_python_sources_parse(self):
         import ast
         for path in [deploy.REPO / 'scripts/deploy.py', *deploy.TOOLS.glob('*.py')]:

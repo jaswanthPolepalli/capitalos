@@ -2,12 +2,32 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import urllib.error
 import urllib.request
 
 ROOT = Path(os.environ['CAPITALOS_RELEASE_DIR']).resolve()
 ORG = '60088793510'
+
+
+def cli_root():
+    """Locate the installed Catalyst CLI package.
+
+    `npm root -g` resolves against whichever Node is first on PATH, so a pinned
+    release toolchain reports a global root that has no CLI. Resolve the actual
+    `catalyst` executable first and fall back to npm only if that fails.
+    """
+    executable = shutil.which('catalyst')
+    if executable:
+        path = Path(executable).resolve()
+        for parent in path.parents:
+            if parent.name == 'zcatalyst-cli':
+                return parent.parent
+    base = Path(subprocess.check_output(['npm', 'root', '-g'], text=True).strip())
+    if (base / 'zcatalyst-cli').is_dir():
+        return base
+    raise RuntimeError('Catalyst CLI not found; install zcatalyst-cli and run catalyst login --dc in')
 
 
 def save(name, data):
@@ -24,7 +44,7 @@ class Catalyst:
         self.token = os.environ.get('CATALYST_ACCESS_TOKEN', '')
         if not self.token:
             # Use the installed CLI's credential refresh; never print credentials.
-            base = subprocess.check_output(['npm', 'root', '-g'], text=True).strip()
+            base = str(cli_root())
             js = """const base=process.argv[1]+'/zcatalyst-cli/lib/';
 const S=require(base+'util_modules/config-store.js').default;
 const C=require(base+'authentication/credential.js').default;
