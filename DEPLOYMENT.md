@@ -1,5 +1,7 @@
 # CapitalOS — Deployment & Project Reference
 
+**Latest release — 10 October 2026:** CFO Share now hides transactions with no CFO share and supports payment-month plus inclusive date filters. Additional cashback on a card/month prompts for confirmation and preserves each transaction’s own status. Deployed through the documented manual Catalyst workflow after fresh 818-row live and recovery backups, an isolated rollback rehearsal, 941 passing tests and hosted verification. All 818 live rows remained unchanged. See [release evidence and rollback](docs/deployment-cfo-cashback-2026-10-10.md).
+
 **Latest frontend release — 8 October 2026:** Cashback actions now use compact, single-line buttons side by side. Deployed to the existing Development app after fresh 747-record backups, isolated restoration and rollback rehearsal, 919 tests and hosted verification. Backend and live data remain unchanged. See [release evidence and rollback](docs/deployment-compact-cashback-2026-10-08.md).
 
 **Latest release — 8 October 2026:** Direct cashback payments, per-payment CFO waiver and percentage/amount overrides, payment details and cashback CFO reporting are deployed to the existing Development app. Fresh 747-record backups, isolated restoration/rollback rehearsal, 919 tests and hosted verification passed. See [release evidence and rollback](docs/deployment-cashback-payment-2026-10-08.md).
