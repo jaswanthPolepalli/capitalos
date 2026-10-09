@@ -18,6 +18,8 @@ LIVE = '71834000000017016'
 RECOVERY = '71834000000073259'
 PROJECTS = (LIVE, RECOVERY)
 WORKERS = {'capitalos-daily-summary': 'DAILY_SUMMARY_EMAILS_ENABLED', 'capitalos-month-end': 'MONTH_END_EMAILS_ENABLED'}
+ENV_CONFIRM_POLLS = 30
+ENV_CONFIRM_INTERVAL = 2
 
 
 def require(value, message):
@@ -70,7 +72,13 @@ def update_env(c, pid, function, values):
     env = copy.deepcopy(function['configuration']['environment']['variables'])
     env.update(values)
     c.request(path + '/configuration', 'POST', {'environment': {'variables': env}})
-    require(c.request(path)['configuration']['environment']['variables'] == env, 'Runtime change unconfirmed')
+    # Configuration reads are eventually consistent: a correct update can still read
+    # back stale briefly. Poll for the exact desired state; never accept a mismatch.
+    for _ in range(ENV_CONFIRM_POLLS):
+        if c.request(path)['configuration']['environment']['variables'] == env:
+            return
+        time.sleep(ENV_CONFIRM_INTERVAL)
+    require(False, 'Runtime change unconfirmed')
 
 
 def probe(host):
