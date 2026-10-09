@@ -22,8 +22,16 @@ export function CFOSharePage() {
   const selectedCapital = selected?.profitCapitalRupees ?? contribution?.amountRupees;
   const percent = (amount: number, capital: number | undefined) => capital && capital > 0 ? `${Number((amount / capital * 100).toFixed(4))}%` : '—';
   const [month, setMonth] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [partnerId, setPartnerId] = useState('');
-  const records = allRecords.filter(p => p.combinedAmountRupees !== undefined && (!month || p.paidDate.startsWith(month)) && (!partnerId || p.partnerId === partnerId))
+  const invalidRange = Boolean(fromDate && toDate && fromDate > toDate);
+  const records = allRecords.filter(p => p.combinedAmountRupees !== undefined
+    && (p.cfoShareRupees ?? 0) > 0
+    && (!month || p.paidDate.startsWith(month))
+    && (!fromDate || p.paidDate >= fromDate)
+    && (!toDate || p.paidDate <= toDate)
+    && (!partnerId || p.partnerId === partnerId))
     .sort((a, b) => b.paidDate.localeCompare(a.paidDate) || b.id.localeCompare(a.id, undefined, { numeric: true }));
   const total = records.reduce((sum, r) => sum + (r.cfoShareRupees ?? 0), 0);
 
@@ -33,9 +41,12 @@ export function CFOSharePage() {
       <div className="cfo-share-page__total"><span>Total amount</span><strong>{fmt(total)}</strong></div>
       <div className="cfo-share-page__filters" role="group" aria-label="Transaction filters">
         <div className="form-field"><label htmlFor="cfo-month" className="form-label">Payment month</label><input id="cfo-month" className="form-input" type="month" value={month} onChange={e => setMonth(e.target.value)} /></div>
+        <div className="form-field"><label htmlFor="cfo-from" className="form-label">From date</label><input id="cfo-from" className="form-input" type="date" value={fromDate} max={toDate || undefined} onChange={e => setFromDate(e.target.value)} /></div>
+        <div className="form-field"><label htmlFor="cfo-to" className="form-label">To date</label><input id="cfo-to" className="form-input" type="date" value={toDate} min={fromDate || undefined} onChange={e => setToDate(e.target.value)} /></div>
         <div className="form-field"><label htmlFor="cfo-partner" className="form-label">Partner</label><select id="cfo-partner" className="form-input" value={partnerId} onChange={e => setPartnerId(e.target.value)}><option value="">All partners</option>{partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-        <button type="button" className="button button--secondary" onClick={() => { setMonth(''); setPartnerId(''); }}>Clear filters</button>
+        <button type="button" className="button button--secondary" onClick={() => { setMonth(''); setFromDate(''); setToDate(''); setPartnerId(''); }}>Clear filters</button>
       </div>
+      {invalidRange && <p className="form-error" role="alert">From date must be on or before To date.</p>}
       <div className="table-wrapper cfo-share-page__transactions">
         <table className="data-table" aria-label="CFO share transactions">
           <thead><tr><th className="table-th">Date</th><th className="table-th">Partner</th><th className="table-th">Amount</th><th className="table-th">CFO share</th><th className="table-th" title="CFO share divided by invested capital">CFO %</th></tr></thead>

@@ -11,6 +11,35 @@ const dataset = s => ({ partners: s.COS_Partners, allocations: s.COS_Allocations
 function seed() { const s = baseData(); s.COS_Allocations[0].credit_card_id = 'c'; s.COS_Allocations[0].notes = 'WA_CONFIRMED'; return s; }
 
 describe('daily summary balances and scheduling', () => {
+  it.each([
+    ['PROFIT_SPLIT_V1:420', 300, 420],
+    ['PROFIT_SPLIT_V2:420:2:10000', 200, 420],
+    ['PROFIT_SPLIT_V3:300', 300, 300],
+    ['PROFIT_SPLIT_V4:420:250:10000', 250, 420],
+    ['', 300, 300],
+  ])('includes recorded CFO profit in CEO paid totals: %s', (notes, partnerAmount, total) => {
+    const s = seed();
+    Object.assign(s.COS_Profits[0], { notes, amount_rupees: partnerAmount, paid_date: window.date });
+    const report = buildDailySummary(dataset(s), window);
+    expect(report.activity.profits).toBe(total);
+    expect(report.activity.count).toBe(1);
+    expect(report.rows[0].profit).toBe(0);
+  });
+  it.each([
+    [{ amountRupees: 500, combinedAmountRupees: 700, cfoShareRupees: 200 }, 700, 0],
+    [{ amountRupees: 500, combinedAmountRupees: 500, noCfoSplit: true }, 500, 0],
+    [{ amountRupees: 500 }, 500, 0],
+    [{ amountRupees: null }, 0, 1],
+  ])('includes recorded CFO cashback and preserves legacy unknown amounts: %j', (payment, total, unknown) => {
+    const s = seed();
+    s.COS_Allocations[0].cashback_data = JSON.stringify({ status: 'paid', paidDate: window.date, ...payment });
+    expect(buildDailySummary(dataset(s), window).activity).toMatchObject({ cashback: total, unknownCashbackCount: unknown, count: 1 });
+  });
+  it('rejects invalid combined cashback instead of sending an incorrect CEO total', () => {
+    const s = seed();
+    s.COS_Allocations[0].cashback_data = JSON.stringify({ status: 'paid', paidDate: window.date, amountRupees: 500, combinedAmountRupees: -700 });
+    expect(() => buildDailySummary(dataset(s), window)).toThrow('Invalid amount');
+  });
   it('sorts cashback follow-up by amount-given date ascending across partners and cards', () => {
     const s = seed();
     s.COS_Partners = [{ ROWID: 'z', name: 'Zara', notes: '' }, { ROWID: 'a', name: 'Arun', notes: '' }];
@@ -161,13 +190,15 @@ describe('daily email delivery', () => {
   });
 });
 
-it('omits repeat card transactions from cashback follow-up without dropping capital', () => {
+it('follows up every open card transaction with its own status without dropping capital', () => {
   const s = seed();
   s.COS_Allocations.push({ ...s.COS_Allocations[0], ROWID: 'repeat', received_date: '2026-01-02', cashback_data: JSON.stringify({ status: 'unpaid', updatedAt: '2026-10-06T00:00:00Z' }) });
   const report = buildDailySummary(dataset(s), window);
-  expect(report.cb).toHaveLength(1);
-  expect(report.cb[0].date).toBe('2026-01-02');
+  expect(report.cb.map(row => [row.date, row.status])).toEqual([['2026-01-01', 'review'], ['2026-01-02', 'unpaid']]);
   expect(report.rows[0].amount).toBe(19000);
+  // A manually excluded transaction is the only way to leave follow-up without paying.
+  s.COS_Allocations[0].cashback_data = JSON.stringify({ status: 'not_applicable' });
+  expect(buildDailySummary(dataset(s), window).cb.map(row => row.date)).toEqual(['2026-01-02']);
 });
 
 it('keeps all unselected same-day transactions in review regardless of creation order', () => {
@@ -179,26 +210,30 @@ it('keeps all unselected same-day transactions in review regardless of creation 
   expect(report.cb.every(row => row.status === 'review')).toBe(true);
 });
 
-it('includes both transactions in email/PDF follow-up after review resets an unpaid choice from a peer', async () => {
+it('keeps a peer in email/PDF follow-up with its own status after an unpaid cashback elsewhere', async () => {
   const s = seed();
   s.COS_Allocations[0].cashback_data = JSON.stringify({status:'unpaid',updatedAt:'2026-10-06T00:00:00Z'});
   s.COS_Allocations.push({...s.COS_Allocations[0],ROWID:'peer',cashback_data:undefined});
   const h = createApiHarness(s);
-  expect(buildDailySummary(dataset(h.db),window).cb).toHaveLength(1);
+  expect(buildDailySummary(dataset(h.db),window).cb.map(row=>row.status)).toEqual(['unpaid','review']);
   expect((await h.request('PATCH','allocations/peer/cashback',{status:'review'})).status).toBe('success');
   const report=buildDailySummary(dataset(h.db),window);
-  expect(report.cb.map(row=>row.status)).toEqual(['review','review']);
+  expect(report.cb.map(row=>row.status)).toEqual(['unpaid','review']);
   expect(report.activity.cashback).toBe(0);
 });
 
-it('keeps unpaid follow-up and totals consistent after a separate additional cashback payment', async () => {
+it('keeps unpaid follow-up and totals consistent after a confirmed additional cashback payment', async () => {
   const s=seed();s.COS_Allocations[0].cashback_data=JSON.stringify({status:'unpaid',updatedAt:'2026-10-06T00:00:00Z'});
   s.COS_Allocations.push({...s.COS_Allocations[0],ROWID:'extra',cashback_data:undefined},{...s.COS_Allocations[0],ROWID:'peer',cashback_data:undefined});
   const h=createApiHarness(s);
   const before=buildDailySummary(dataset(h.db),window);
-  expect((await h.request('PATCH','allocations/extra/cashback',{status:'paid',amountRupees:500,paidDate:window.date})).status).toBe('success');
+  expect(before.cb.map(row=>row.status)).toEqual(['unpaid','review','review']);
+  const payment={status:'paid',amountRupees:500,paidDate:window.date};
+  expect((await h.request('PATCH','allocations/extra/cashback',payment)).status).toBe('error');
+  expect((await h.request('PATCH','allocations/extra/cashback',{...payment,confirmedCashbackAllocationIds:['a']})).status).toBe('success');
   const after=buildDailySummary(dataset(h.db),window);
-  expect(after.cb).toEqual(before.cb);
+  // The paid transaction leaves follow-up; the untouched peer and unpaid entry keep their rows.
+  expect(after.cb.map(row=>row.status)).toEqual(['unpaid','review']);
   expect(after.rows).toEqual(before.rows);
   expect(after.activity.cashback).toBe(500);
 });

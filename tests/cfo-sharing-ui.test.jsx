@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ModalAccessibility } from '../client/src/components/ModalAccessibility';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -60,6 +60,51 @@ it('opens the transaction details from the row and supports keyboard dismissal',
   expect(screen.getByRole('dialog')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Close transaction details' }));
   expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('hides transactions without a CFO share and keeps them out of the total', async () => {
+  const h = createApiHarness(baseData());
+  await h.request('POST', 'profit-records', { partnerId: 'p', allocationId: 'a', amountRupees: 7000, paidDate: '2026-10-08', notes: '' });
+  await h.request('POST', 'profit-records', { partnerId: 'p', allocationId: 'a', amountRupees: 3000, noCfoSplit: true, paidDate: '2026-10-09', notes: 'All to partner' });
+  vi.stubGlobal('fetch', vi.fn(async url => new Response(JSON.stringify(await h.request('GET', String(url).replace('/server/capitalos-api/', ''))))));
+  await store.loadAll();
+  render(<MemoryRouter><CFOSharePage /></MemoryRouter>);
+  const table = await screen.findByRole('table', { name: 'CFO share transactions' });
+  expect(within(table).getAllByRole('row')).toHaveLength(2);
+  expect(within(table).getByText('₹2,000')).toBeTruthy();
+  expect(within(table).queryByText('₹0')).toBeNull();
+  expect(within(table).queryByText('₹3,000')).toBeNull();
+  expect(screen.getByText('Total amount').nextElementSibling.textContent).toBe('₹2,000');
+});
+
+it('filters by inclusive from/to dates alongside the month filter', async () => {
+  const h = createApiHarness(baseData());
+  for (const [amount, paidDate] of [[7000, '2026-09-05'], [14000, '2026-10-05'], [21000, '2026-10-20']]) {
+    await h.request('POST', 'profit-records', { partnerId: 'p', allocationId: 'a', amountRupees: amount, paidDate, notes: '' });
+  }
+  vi.stubGlobal('fetch', vi.fn(async url => new Response(JSON.stringify(await h.request('GET', String(url).replace('/server/capitalos-api/', ''))))));
+  await store.loadAll();
+  render(<MemoryRouter><CFOSharePage /></MemoryRouter>);
+  const table = await screen.findByRole('table', { name: 'CFO share transactions' });
+  expect(within(table).getAllByRole('row')).toHaveLength(4);
+
+  fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-10-05' } });
+  fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-10-20' } });
+  expect(within(table).getAllByRole('row')).toHaveLength(3);
+  expect(within(table).queryByText('₹2,000')).toBeNull();
+  expect(screen.getByText('Total amount').nextElementSibling.textContent).toBe('₹10,000');
+
+  fireEvent.change(screen.getByLabelText('Payment month'), { target: { value: '2026-09' } });
+  expect(within(table).getAllByRole('row')).toHaveLength(2);
+  expect(within(table).getByText('No transactions for this selection.')).toBeTruthy();
+
+  fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-10-21' } });
+  fireEvent.change(screen.getByLabelText('To date'), { target: { value: '2026-10-06' } });
+  expect(screen.getByRole('alert').textContent).toContain('From date must be on or before To date');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(within(table).getAllByRole('row')).toHaveLength(4);
 });
 
 it('includes cashback CFO shares and identifies their payment details', async () => {

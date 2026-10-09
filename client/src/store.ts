@@ -30,10 +30,8 @@ export interface Partner {
 export interface CapitalAllocation {
   cashback?: Cashback;
   cashbackEligibility?: string;
-  cashbackSelectedAllocationId?: string | null;
-  cashbackSelectionStatus?: string | null;
-  cashbackOtherPaidAllocationIds?: string[];
-  cashbackSelectionUpdatedAt?: string | null;
+  /** Other transactions on the same card and contribution month that already hold a cashback decision. */
+  cashbackOtherAllocationIds?: string[];
   combination?: Combination;
   id: string;
   partnerId: string;

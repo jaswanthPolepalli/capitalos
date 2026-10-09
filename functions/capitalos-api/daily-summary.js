@@ -3,6 +3,7 @@ const { createHash } = require('node:crypto');
 const { latestProfitPayment } = require('./profit-cycles.mjs');
 const { decode } = require('./combinations.mjs');
 const { pendingProfit, paymentMetadata } = require('./payment-groups.mjs');
+const { profitMetadata } = require('./profit-sharing.mjs');
 const { cashbackStatus, monthlyCashback } = require('./cashback.mjs');
 const { visibility } = require('./records.mjs');
 const { allRows } = require('./persistence.js');
@@ -50,6 +51,7 @@ function buildDailySummary(data, window = dailyWindow()) {
   const ids = new Set(allocations.map(a => a.id));
   const payments = (rows, type, dateKey, property) => rows.filter(r => visible(type, r) && ids.has(String(r.allocation_id))).map(r => ({
     id: String(r.ROWID), allocationId: String(r.allocation_id), partnerId: String(r.partner_id), amountRupees: money(r.amount_rupees),
+    ...(type === 'profit-records' ? { combinedAmountRupees: money(profitMetadata(r.notes || '').combinedAmountRupees ?? r.amount_rupees) } : {}),
     [property]: validDate(r[dateKey]), notes: paymentMetadata(r.notes || '').notes, createdAt: (r.source_created_time || r.CREATEDTIME) ? new Date(r.source_created_time || r.CREATEDTIME).toISOString() : '',
   })).filter(r => r[property] <= window.date);
   const returns = payments(data.returns, 'capital-returns', 'returned_date', 'returnedDate');
@@ -90,8 +92,9 @@ function buildDailySummary(data, window = dailyWindow()) {
   const movements = [
     ...allocations.filter(a => !a.combination).map(a => ({ kind: 'additions', date: a.receivedDate, amount: a.amountRupees, createdAt: a.createdAt })),
     ...returns.map(r => ({ kind: 'returns', date: r.returnedDate, amount: r.amountRupees, createdAt: r.createdAt })),
-    ...profits.map(p => ({ kind: 'profits', date: p.paidDate, amount: p.amountRupees, createdAt: p.createdAt })),
-    ...cashbacks.map(a => ({ kind: 'cashback', date: a.cashback.paidDate, amount: a.cashback.amountRupees, createdAt: a.cashback.updatedAt || a.cashback.createdAt })),
+    // CEO paid totals include the CFO share; pending profit still uses partner payments.
+    ...profits.map(p => ({ kind: 'profits', date: p.paidDate, amount: p.combinedAmountRupees, createdAt: p.createdAt })),
+    ...cashbacks.map(a => ({ kind: 'cashback', date: a.cashback.paidDate, amount: a.cashback.combinedAmountRupees != null ? money(a.cashback.combinedAmountRupees) : a.cashback.amountRupees, createdAt: a.cashback.updatedAt || a.cashback.createdAt })),
   ];
   const today = movements.filter(m => m.date === window.date);
   const activity = Object.fromEntries(['additions', 'returns', 'profits', 'cashback'].map(kind => [kind, sum(today.filter(m => m.kind === kind).map(m => m.amount ?? 0))]));

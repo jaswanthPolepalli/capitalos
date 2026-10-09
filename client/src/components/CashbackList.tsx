@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { cashbackStatus, cashbackTotals } from '../../../functions/capitalos-api/cashback.mjs';
+import { cashbackRecorded, cashbackStatus, cashbackTotals } from '../../../functions/capitalos-api/cashback.mjs';
 import type { AllocationSummary } from '../store';
 import { formatDate } from '../lib/format';
 import { CashbackModal } from './CashbackModal';
@@ -15,7 +15,7 @@ export function CashbackList({ entries, canEdit }: { entries: AllocationSummary[
   const totals = cashbackTotals(entries);
   return <section className="cashback-section" aria-label="Cashback sharing">
     <div className="cashback-list-heading"><h2>Cashback sharing <small>({entries.length})</small></h2><span>Cashback paid: <strong>₹{totals.totalCashbackPaid.toLocaleString('en-IN')}</strong></span></div>
-    <p className="cashback-list-hint">Normally one transaction is selected per card and calendar month. Additional paid cashback is allowed after confirmation and keeps other transaction statuses unchanged. Pending and unreviewed entries stay visible across months, even after capital return.</p>
+    <p className="cashback-list-hint">New transactions start at Needs review. Normally one cashback is recorded per card and calendar month; a second one is allowed after confirming the warning and keeps every other transaction status unchanged. Pending and unreviewed entries stay visible across months, even after capital return.</p>
     {totals.unknownCashbackCount > 0 && <p className="cashback-list-hint">{totals.unknownCashbackCount} paid cashback amount(s) not recorded; excluded from totals.</p>}
     <div className="table-wrapper"><table className="data-table cashback-table" aria-label="Cashback transactions">
       <thead><tr><th className="table-th">Partner / card</th><th className="table-th">Received</th><th className="table-th table-th--money">Capital</th><th className="table-th">Cashback status</th><th className="table-th table-th--money">Cashback paid</th><th className="table-th">Paid on</th><th className="table-th">Actions</th></tr></thead>
@@ -26,7 +26,7 @@ export function CashbackList({ entries, canEdit }: { entries: AllocationSummary[
           <td className="table-cell" data-label="Received">{formatDate(a.receivedDate)}</td>
           <td className="table-cell table-cell--money" data-label="Capital">₹{a.amountRupees.toLocaleString('en-IN')}</td>
           <td className="table-cell" data-label="Cashback status"><span className={`cashback-badge cashback-badge--${status}`}>{cashbackLabels[status]}</span>
-            {status === 'not_applicable' && a.cashbackSelectedAllocationId && a.cashbackSelectedAllocationId !== a.id && <small className="cashback-source"><Link to={`/pending-profits?cashback=${encodeURIComponent(a.cashbackSelectedAllocationId)}`}>View selected cashback transaction</Link></small>}
+            {!cashbackRecorded(a.cashback) && (a.cashbackOtherAllocationIds || []).map(id => <small className="cashback-source" key={id}><Link to={`/pending-profits?cashback=${encodeURIComponent(id)}`}>View cashback recorded this month</Link></small>)}
             {a.profitPending > 0 && <small className="cashback-source">Profit pending: ₹{a.profitPending.toLocaleString('en-IN')}</small>}
             {a.isFullyReturned && <small className="cashback-source">Capital fully returned</small>}
             {a.combinationReserved && <small className="cashback-source">Capital moved to combined entry</small>}
