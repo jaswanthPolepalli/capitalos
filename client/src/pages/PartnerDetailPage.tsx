@@ -35,6 +35,7 @@ import { useStore } from "../useStore";
 import { useRole } from "../context/RoleContext";
 import { amountToWords } from "../lib/amountWords";
 import { SearchableSelect } from "../components/SearchableSelect";
+import { UpiPaymentPanel, emptyUpiPayment, upiPaymentNote, type UpiPaymentState } from "../components/UpiPaymentPanel";
 
 // ─── Delete Partner Confirmation Modal ────────────────────────────────────────
 
@@ -278,10 +279,11 @@ function AddContributionModal({ partnerId, partnerCards, onClose }: { partnerId:
 
 // ─── Record Capital Return Modal ──────────────────────────────────────────────
 
-function RecordCapitalReturnModal({ allocationId, partnerId, capitalOutstanding, onClose }: { allocationId: string; partnerId: string; capitalOutstanding: number; onClose: () => void }) {
+function RecordCapitalReturnModal({ allocationId, partnerId, capitalOutstanding, partnerName, partnerPhone, onClose }: { allocationId: string; partnerId: string; capitalOutstanding: number; partnerName?: string; partnerPhone?: string | null; onClose: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({ amountStr: String(capitalOutstanding), returnedDate: today, notes: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [upiState, setUpiState] = useState<UpiPaymentState>({ ...emptyUpiPayment, payee: partnerPhone ?? "" });
 
   function validate() {
     const e: Record<string, string> = {};
@@ -296,7 +298,7 @@ function RecordCapitalReturnModal({ allocationId, partnerId, capitalOutstanding,
   function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
     if (!validate()) return;
-    const input: AddCapitalReturnInput = { allocationId, partnerId, amountRupees: Math.round(Number(form.amountStr)), returnedDate: form.returnedDate, notes: form.notes };
+    const input: AddCapitalReturnInput = { allocationId, partnerId, amountRupees: Math.round(Number(form.amountStr)), returnedDate: form.returnedDate, notes: [form.notes, upiPaymentNote(upiState)].filter(Boolean).join(" · ") };
     addCapitalReturn(input);
     onClose();
   }
@@ -328,9 +330,10 @@ function RecordCapitalReturnModal({ allocationId, partnerId, capitalOutstanding,
             <label className="form-label" htmlFor="cr-notes">Notes</label>
             <textarea id="cr-notes" className="form-input form-textarea" rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Bank transfer ref, partial/full return…" />
           </div>
+          <UpiPaymentPanel amount={form.amountStr} onAmountChange={amount => set("amountStr", amount)} partnerName={partnerName} initialPayee={partnerPhone} onStateChange={setUpiState} />
           <div className="modal__footer">
             <button className="button button--secondary" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button--primary" type="submit"><CheckCircle2 size={15} /> Record Return</button>
+            <button className="button button--primary" type="submit" disabled={upiState.enabled && !upiState.confirmed}><CheckCircle2 size={15} /> {upiState.enabled ? "Mark successful and record" : "Record Return"}</button>
           </div>
         </form>
       </div>
@@ -359,6 +362,7 @@ function RecordProfitModal({
   const [form, setForm] = useState({ amountStr: String(Math.round(pendingAmount)), paidDate: today, notes: "" });
   const [closing, setClosing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [upiState, setUpiState] = useState<UpiPaymentState>({ ...emptyUpiPayment, payee: partnerPhone ?? "" });
   const [reinvest, setReinvest] = useState(false);
   const [newReturnDate, setNewReturnDate] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -377,9 +381,7 @@ function RecordProfitModal({
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
     if (!validate()) return;
-    const notesWithTag = reinvest
-      ? [form.notes.trim(), "Capital reinvested"].filter(Boolean).join(" · ")
-      : form.notes;
+    const notesWithTag = [form.notes.trim(), reinvest ? "Capital reinvested" : "", upiPaymentNote(upiState)].filter(Boolean).join(" · ");
     const input: AddProfitRecordInput = {
       allocationId,
       partnerId,
@@ -477,6 +479,7 @@ function RecordProfitModal({
             <label className="form-label" htmlFor="rp-notes">Notes</label>
             <textarea id="rp-notes" className="form-input form-textarea" rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder="e.g. Q3 profit payment" />
           </div>
+          <UpiPaymentPanel amount={form.amountStr} onAmountChange={amount => set("amountStr", amount)} partnerName={partnerName} initialPayee={partnerPhone} onStateChange={setUpiState} />
 
           {/* Reinvest / Recur capital option */}
           <div style={{
@@ -525,7 +528,7 @@ function RecordProfitModal({
 
           <div className="modal__footer">
             <button className="button button--secondary" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button--primary" type="submit"><CheckCircle2 size={15} /> Record Payment</button>
+            <button className="button button--primary" type="submit" disabled={upiState.enabled && !upiState.confirmed}><CheckCircle2 size={15} /> {upiState.enabled ? "Mark successful and record" : "Record Payment"}</button>
           </div>
         </form>
       </div>
@@ -757,7 +760,7 @@ export function PartnerDetailPage() {
       {modal.type === "editPartner" && <EditPartnerModal partner={partner} onClose={() => setModal({ type: "none" })} />}
       {modal.type === "addContrib" && <AddContributionModal partnerId={partner.id} partnerCards={partnerCards} onClose={() => setModal({ type: "none" })} />}
       {modal.type === "capitalReturn" && (
-        <RecordCapitalReturnModal allocationId={modal.allocationId} partnerId={partner.id} capitalOutstanding={modal.capitalOutstanding} onClose={() => setModal({ type: "none" })} />
+        <RecordCapitalReturnModal allocationId={modal.allocationId} partnerId={partner.id} capitalOutstanding={modal.capitalOutstanding} partnerName={partner.name} partnerPhone={partner.phone} onClose={() => setModal({ type: "none" })} />
       )}
       {modal.type === "profitPay" && (() => {
         const payingAlloc = partnerAllocations.find((a) => a.id === modal.allocationId);

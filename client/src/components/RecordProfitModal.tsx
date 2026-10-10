@@ -5,6 +5,7 @@ import { CheckCircle2, MessageCircle, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { buildProfitPaymentWhatsAppLink } from "../lib/whatsapp";
 import { getAllocations, addProfitRecord, updateAllocationReturnDate, type AddProfitRecordInput } from "../store";
+import { UpiPaymentPanel, emptyUpiPayment, upiPaymentNote, type UpiPaymentState } from "./UpiPaymentPanel";
 
 function fmt(rupees: number): string {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(rupees);
@@ -44,6 +45,7 @@ export function RecordProfitModal({
   });
   const [closing, setClosing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [upiState, setUpiState] = useState<UpiPaymentState>({ ...emptyUpiPayment, payee: partnerPhone ?? "" });
 
   // Post-submit state for WhatsApp share
   const [submitted, setSubmitted] = useState(false);
@@ -110,6 +112,8 @@ export function RecordProfitModal({
     // Build notes
     const noteParts: string[] = [];
     if (form.notes.trim()) noteParts.push(form.notes.trim());
+    const upiNote = upiPaymentNote(upiState);
+    if (upiNote) noteParts.push(upiNote);
     if (reinvest) noteParts.push("Capital reinvested");
     if (isPartial) {
       // Build partial tag
@@ -292,6 +296,7 @@ export function RecordProfitModal({
           </div>
 
           <ProfitSplitPreview amount={enteredAmount} capital={capital} customPercent={customPercent} onPercentChange={setCustomPercent} />
+          <UpiPaymentPanel amount={form.amountStr} onAmountChange={amount => set("amountStr", amount)} partnerName={partnerName} initialPayee={partnerPhone} onStateChange={setUpiState} />
           <div className="form-field">
             <label className="form-label" htmlFor="pp-notes">Notes</label>
             <textarea
@@ -443,9 +448,9 @@ export function RecordProfitModal({
 
           <div className="modal__footer">
             <button className="button button--secondary" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button--primary" type="submit">
+            <button className="button button--primary" type="submit" disabled={upiState.enabled && !upiState.confirmed}>
               <CheckCircle2 size={15} />
-              {isPartial ? "Record Partial Payment" : "Record Payment"}
+              {upiState.enabled ? "Review successful payment" : (isPartial ? "Record Partial Payment" : "Record Payment")}
             </button>
           </div>
         </form>

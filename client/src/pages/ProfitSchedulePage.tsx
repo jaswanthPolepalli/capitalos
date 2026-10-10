@@ -14,6 +14,7 @@ import { PageHeader } from "../components/PageHeader";
 import { formatDate } from "../lib/format";
 import type { AddProfitRecordInput } from "../store";
 import { useStore } from "../useStore";
+import { UpiPaymentPanel, emptyUpiPayment, upiPaymentNote, type UpiPaymentState } from "../components/UpiPaymentPanel";
 
 function fmt(rupees: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -46,6 +47,7 @@ function RecordProfitModal({
     notes: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [upiState, setUpiState] = useState<UpiPaymentState>(emptyUpiPayment);
 
   const selectedAlloc = allocationSummaries.find((a) => a.id === form.allocationId);
   const partner = selectedAlloc ? partners.find((p) => p.id === selectedAlloc.partnerId) : undefined;
@@ -69,7 +71,7 @@ function RecordProfitModal({
       partnerId: selectedAlloc.partnerId,
       amountRupees: Math.round(Number(form.amountStr)),
       paidDate: form.paidDate,
-      notes: form.notes,
+      notes: [form.notes, upiPaymentNote(upiState)].filter(Boolean).join(" · "),
     });
     onClose();
   }
@@ -157,12 +159,13 @@ function RecordProfitModal({
               rows={2}
             />
           </div>
+          <UpiPaymentPanel amount={form.amountStr} onAmountChange={amount => set("amountStr", amount)} partnerName={partner?.name} initialPayee={partner?.phone} onStateChange={setUpiState} />
 
           <div className="modal__footer">
             <button className="button button--secondary" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button--primary" type="submit">
+            <button className="button button--primary" type="submit" disabled={upiState.enabled && !upiState.confirmed}>
               <CheckCircle2 size={16} />
-              Record Payment
+              {upiState.enabled ? "Mark successful and record" : "Record Payment"}
             </button>
           </div>
         </form>

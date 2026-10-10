@@ -32,6 +32,7 @@ import { useStore } from "../useStore";
 import { amountToWords } from "../lib/amountWords";
 import { downloadCSV, csvFilename } from "../lib/csv";
 import { SearchableSelect } from "../components/SearchableSelect";
+import { UpiPaymentPanel, emptyUpiPayment, upiPaymentNote, type UpiPaymentState } from "../components/UpiPaymentPanel";
 import { useRole } from "../context/RoleContext";
 
 const PAGE_SIZE = 25;
@@ -556,6 +557,7 @@ function RecordCapitalReturnModal({
   const activeAllocs = allocations.filter((a) => !a.isFullyReturned);
   const [form, setForm] = useState({ allocationId: activeAllocs[0]?.id || "", amountStr: "", returnedDate: today, notes: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [upiState, setUpiState] = useState<UpiPaymentState>(emptyUpiPayment);
 
   const selectedAlloc = allocations.find((a) => a.id === form.allocationId);
   const partner = selectedAlloc ? partners.find((p) => p.id === selectedAlloc.partnerId) : undefined;
@@ -574,7 +576,7 @@ function RecordCapitalReturnModal({
   function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
     if (!validate() || !selectedAlloc) return;
-    onSave({ allocationId: form.allocationId, partnerId: selectedAlloc.partnerId, amountRupees: Math.round(Number(form.amountStr)), returnedDate: form.returnedDate, notes: form.notes });
+    onSave({ allocationId: form.allocationId, partnerId: selectedAlloc.partnerId, amountRupees: Math.round(Number(form.amountStr)), returnedDate: form.returnedDate, notes: [form.notes, upiPaymentNote(upiState)].filter(Boolean).join(" · ") });
     onClose();
   }
 
@@ -641,9 +643,10 @@ function RecordCapitalReturnModal({
             <label htmlFor="cr-notes" className="form-label">Notes</label>
             <textarea id="cr-notes" className="form-input form-textarea" rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Bank transfer ref, partial/full return…" />
           </div>
+          <UpiPaymentPanel amount={form.amountStr} onAmountChange={amount => set("amountStr", amount)} partnerName={partner?.name} initialPayee={partner?.phone} onStateChange={setUpiState} />
           <div className="modal__footer">
             <button className="button button--secondary" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button--primary" type="submit"><CheckCircle2 size={16} /> Record Return</button>
+            <button className="button button--primary" type="submit" disabled={upiState.enabled && !upiState.confirmed}><CheckCircle2 size={16} /> {upiState.enabled ? "Mark successful and record" : "Record Return"}</button>
           </div>
         </form>
       </div>

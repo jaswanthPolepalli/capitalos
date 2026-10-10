@@ -6,6 +6,7 @@ import { cashbackRecorded, cashbackStatus, validateCashback, type CashbackStatus
 import { businessToday } from '../lib/businessDates';
 import { buildProfitPaymentWhatsAppLink } from '../lib/whatsapp';
 import { updateCashback, type AllocationSummary, type Cashback } from '../store';
+import { UpiPaymentPanel, emptyUpiPayment, upiPaymentNote, type UpiPaymentState } from './UpiPaymentPanel';
 
 export function CashbackModal({ allocation, onClose }: { allocation: AllocationSummary; onClose: () => void }) {
   const existing = allocation.cashback;
@@ -26,6 +27,7 @@ export function CashbackModal({ allocation, onClose }: { allocation: AllocationS
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState<Cashback | null>(null);
+  const [upiState, setUpiState] = useState<UpiPaymentState>({ ...emptyUpiPayment, payee: allocation.partner?.phone ?? '' });
   async function save(e: React.FormEvent) {
     e.preventDefault(); setError('');
     let payment: Cashback;
@@ -33,7 +35,7 @@ export function CashbackModal({ allocation, onClose }: { allocation: AllocationS
       if (status === 'paid' && amount.trim() && preview.error) throw new Error(preview.error);
       payment = validateCashback({ status,
         ...(amount.trim() ? { combinedAmountRupees: Number(amount), ...profitOptions(customPercent) } : {}),
-        paymentMethod, amountRupees: amount.trim() === '' ? null : Number(amount), paidDate: date, notes, confirmedCashbackAllocationIds: confirmedAdditional ? others : [] }, allocation, businessToday()); }
+        paymentMethod: upiState.enabled ? 'UPI' : paymentMethod, amountRupees: amount.trim() === '' ? null : Number(amount), paidDate: date, notes: [notes, upiPaymentNote(upiState)].filter(Boolean).join(' · '), confirmedCashbackAllocationIds: confirmedAdditional ? others : [] }, allocation, businessToday()); }
     catch (err) { setError((err as Error).message); return; }
     setSaving(true);
     try { await updateCashback(allocation.id, payment, sendEmail, confirmedAdditional ? others : []); setSaved(payment); }
@@ -68,6 +70,7 @@ export function CashbackModal({ allocation, onClose }: { allocation: AllocationS
           <div className="form-field"><label className="form-label" htmlFor="cashback-amount">Cashback amount (₹)</label><input id="cashback-amount" className="form-input" type="number" inputMode="numeric" min="1" step="1" required={!historical} value={amount} onChange={e => setAmount(e.target.value)} disabled={saving} /></div>
           <p className="form-hint">Enter the combined cashback available for the partner and CFO. There is no configured default cashback rate.</p>
           {amount.trim() && <ProfitSplitPreview kind="cashback" amount={Number(amount)} capital={allocation.amountRupees} customPercent={customPercent} onPercentChange={setCustomPercent} disabled={saving} />}
+          <UpiPaymentPanel amount={amount} onAmountChange={setAmount} partnerName={allocation.partner?.name} initialPayee={allocation.partner?.phone} onStateChange={setUpiState} disabled={saving} />
           <div className="form-field"><label className="form-label" htmlFor="cashback-method">Payment account / method (optional)</label><input id="cashback-method" className="form-input" maxLength={200} value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} disabled={saving} /></div>
           <div className="form-field"><label className="form-label" htmlFor="cashback-date">Date shared with partner</label><input id="cashback-date" className="form-input" type="date" min={allocation.receivedDate} max={businessToday()} required value={date} onChange={e => setDate(e.target.value)} disabled={saving} /></div>
           {historical && <p className="form-hint">Amount is optional for old transactions. Leave it blank if unknown; totals will include only recorded amounts.</p>}
@@ -77,7 +80,7 @@ export function CashbackModal({ allocation, onClose }: { allocation: AllocationS
         {existing?.status === 'paid' && status !== 'paid' && <p className="form-hint">This correction removes the cashback payment from the ledger. The previous values remain in change history.</p>}
         <div className="form-field"><label className="form-label" htmlFor="cashback-notes">Notes (optional)</label><textarea id="cashback-notes" className="form-input" maxLength={2000} value={notes} onChange={e => setNotes(e.target.value)} disabled={saving} /></div>
         {error && <p className="form-error" role="alert">{error}</p>}
-        <div className="modal__footer"><button className="button button--secondary" type="button" onClick={onClose} disabled={saving}>Cancel</button><button className="button button--primary" disabled={saving}>{saving ? 'Saving…' : status === 'paid' ? 'Record cashback payment' : 'Save cashback'}</button></div>
+        <div className="modal__footer"><button className="button button--secondary" type="button" onClick={onClose} disabled={saving}>Cancel</button><button className="button button--primary" disabled={saving || (upiState.enabled && !upiState.confirmed)}>{saving ? 'Saving…' : upiState.enabled ? 'Mark successful and record' : status === 'paid' ? 'Record cashback payment' : 'Save cashback'}</button></div>
       </form>}
     </div>
   </div>;

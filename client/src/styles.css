@@ -5423,3 +5423,11 @@ a:focus-visible {
 .activity-entry-time { margin: 6px 0 10px; }
 .activity-change-summary p { font-size: 13px; margin: 4px 0; overflow-wrap: anywhere; }
 .activity-entry details { margin-top: 10px; font-size: 13px; }
+.upi-payment-panel { margin: 14px 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.upi-payment-panel__toggle { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.upi-payment-panel__toggle input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
+.upi-payment-panel__toggle span { display: grid; gap: 3px; }
+.upi-payment-panel__toggle small, .upi-payment-panel__return { color: var(--muted); font-size: 12px; }
+.upi-payment-panel__fields { display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.upi-payment-panel__fields .form-hint { margin: 0; }
+.upi-payment-panel__return { margin: 0; }

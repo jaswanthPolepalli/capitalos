@@ -13,6 +13,7 @@ import { useState } from "react";
 
 import { amountToWords } from "../lib/amountWords";
 import { getAllocations, addCapitalReturn, addProfitRecord } from "../store";
+import { UpiPaymentPanel, emptyUpiPayment, upiPaymentNote, type UpiPaymentState } from "./UpiPaymentPanel";
 
 export type QuickPayType = "profit" | "capital";
 
@@ -55,6 +56,7 @@ export function QuickPayModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [closing, setClosing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [upiState, setUpiState] = useState<UpiPaymentState>(emptyUpiPayment);
 
   const amountNum = Number(form.amountStr);
   const amountValid = Number.isSafeInteger(amountNum) && amountNum > 0;
@@ -73,7 +75,7 @@ export function QuickPayModal({
     if (!validate()) return;
     setSaving(true);
     try {
-      const notes = [form.notes.trim(), form.referenceNumber ? `Ref: ${form.referenceNumber}` : ""].filter(Boolean).join(" · ");
+      const notes = [form.notes.trim(), form.referenceNumber ? `Ref: ${form.referenceNumber}` : "", upiPaymentNote(upiState)].filter(Boolean).join(" · ");
       if (target.payType === "profit") {
         await addProfitRecord({
           allocationId: target.allocationId,
@@ -215,6 +217,8 @@ export function QuickPayModal({
             />
           </div>
 
+          <UpiPaymentPanel amount={form.amountStr} onAmountChange={amount => set("amountStr", amount)} partnerName={target.partnerName} onStateChange={setUpiState} />
+
           {errors.submit && (
             <div className="form-error" style={{ marginTop: 4 }}>{errors.submit}</div>
           )}
@@ -223,7 +227,7 @@ export function QuickPayModal({
             <button className="button button--secondary" type="button" onClick={onClose} disabled={saving}>
               Cancel
             </button>
-            <button className="button button--primary" type="submit" disabled={saving}>
+            <button className="button button--primary" type="submit" disabled={saving || (upiState.enabled && !upiState.confirmed)}>
               {saving ? "Posting…" : (
                 <><CheckCircle2 size={15} /> Post {typeLabel}</>
               )}
