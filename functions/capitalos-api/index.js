@@ -503,7 +503,13 @@ module.exports = async function(req, res) {
       const { renderDailySummary } = require('./daily-summary-pdf.js');
       const summary = buildDailySummary(await loadSummaryData(name => getApp(req).datastore().table(name)));
       const pdf = await renderDailySummary(summary);
-      return ok(res, { status: 'ready', filename: `CapitalOS-Daily-Summary-${summary.date}.pdf`, contentBase64: pdf.toString('base64') });
+      return ok(res, { status: 'ready', filename: `CapitalOS-Daily-Summary-${summary.date}.pdf`, contentBase64: pdf.toString('base64'), summary });
+    }
+    if (path === 'daily-summary/data' && method === 'GET') {
+      if (process.env.VITE_USE_MOCK === 'true' || process.env.CAPITALOS_MOCK === 'true') return ok(res, { status: 'mock' });
+      const { loadSummaryData, buildDailySummary } = require('./daily-summary.js');
+      const summary = buildDailySummary(await loadSummaryData(name => getApp(req).datastore().table(name)));
+      return ok(res, { status: 'ready', summary });
     }
     if (path === 'daily-summary/send' && method === 'POST') {
       const input = await readBody(req);

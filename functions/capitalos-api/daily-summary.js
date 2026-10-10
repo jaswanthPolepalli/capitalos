@@ -16,7 +16,8 @@ function dailyWindow(now = new Date()) {
   const part = key => parts.find(p => p.type === key).value;
   const date = `${part('year')}-${part('month')}-${part('day')}`;
   const cutoff = new Date(`${date}T23:00:00+05:30`);
-  return { date, due: Number(part('hour')) >= 23, cutoffAt: now.toISOString(), since: new Date(cutoff.getTime() - 86400000).toISOString() };
+  const start = new Date(`${date}T00:01:00+05:30`);
+  return { date, due: Number(part('hour')) >= 23, cutoffAt: now.toISOString(), startAt: start.toISOString(), since: new Date(cutoff.getTime() - 86400000).toISOString() };
 }
 async function loadSummaryData(table) {
   return Object.fromEntries(await Promise.all(Object.entries(TABLES).map(async ([key, name]) => [key, await allRows(table(name))])));
@@ -58,11 +59,26 @@ function buildDailySummary(data, window = dailyWindow()) {
   const profits = payments(data.profits, 'profit-records', 'paid_date', 'paidDate');
   const transferred = new Set(allocations.flatMap(a => a.combination?.sources.map(s => s.id) || []));
   const groups = new Map();
+  const cashGroups = new Map();
   const cashbackRows = [];
   for (const a of monthlyCashback(allocations)) {
+    const partner = partners.find(p => String(p.ROWID) === a.partnerId);
+    if (!partner) throw new Error('A contribution has an unavailable partner; summary not sent.');
+    if (!a.creditCardId) {
+      const remaining = a.amountRupees - sum(returns.filter(r => r.allocationId === a.id).map(r => r.amountRupees));
+      if (remaining < 0) throw new Error('Capital returns exceed the contribution; summary not sent.');
+      const amount = transferred.has(a.id) ? 0 : remaining;
+      if (amount > 0) {
+        const dueDate = a.dueDateConfirmed ? a.returnDate : null;
+        const key = `${a.partnerId}:${dueDate || 'no-due'}`;
+        const row = cashGroups.get(key) || { partnerId: a.partnerId, partner: partner.name || 'Partner', dueDate, amount: 0 };
+        row.amount = sum([row.amount, amount]);
+        cashGroups.set(key, row);
+      }
+      continue;
+    }
     if (!a.creditCardId) continue;
     const card = cards.find(c => String(c.ROWID) === a.creditCardId && String(c.partner_id) === a.partnerId);
-    const partner = partners.find(p => String(p.ROWID) === a.partnerId);
     if (!card || !partner) throw new Error('A contribution has an unavailable card or partner; summary not sent.');
     // A confirmed statement and subsequent unbilled spending are separate balances.
     const billed = Boolean(a.dueDateConfirmed && a.returnDate);
@@ -97,11 +113,16 @@ function buildDailySummary(data, window = dailyWindow()) {
     ...cashbacks.map(a => ({ kind: 'cashback', date: a.cashback.paidDate, amount: a.cashback.combinedAmountRupees != null ? money(a.cashback.combinedAmountRupees) : a.cashback.amountRupees, createdAt: a.cashback.updatedAt || a.cashback.createdAt })),
   ];
   const today = movements.filter(m => m.date === window.date);
-  const activity = Object.fromEntries(['additions', 'returns', 'profits', 'cashback'].map(kind => [kind, sum(today.filter(m => m.kind === kind).map(m => m.amount ?? 0))]));
-  activity.count = today.length;
-  activity.unknownCashbackCount = today.filter(m => m.kind === 'cashback' && m.amount == null).length;
-  return { date: window.date, cutoffAt: window.cutoffAt, rows, cb: cashbackRows, activity,
-    hasActivity: today.length > 0 || movements.some(m => m.createdAt && Date.parse(m.createdAt) > Date.parse(window.since) && Date.parse(m.createdAt) <= Date.parse(window.cutoffAt)) };
+  const cashRows = [...cashGroups.values()].sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || a.partner.localeCompare(b.partner));
+  const cardCurrent = rows.reduce((n, row) => n + row.amount, 0);
+  const cashCurrent = cashRows.reduce((n, row) => n + row.amount, 0);
+  const from = window.startAt || window.since;
+  const inPeriod = movements.filter(m => m.date === window.date);
+  const activity = Object.fromEntries(['additions', 'returns', 'profits', 'cashback'].map(kind => [kind, sum(inPeriod.filter(m => m.kind === kind).map(m => m.amount ?? 0))]));
+  activity.count = inPeriod.length;
+  activity.unknownCashbackCount = inPeriod.filter(m => m.kind === 'cashback' && m.amount == null).length;
+  return { date: window.date, cutoffAt: window.cutoffAt, startAt: from, rows, cashRows, balances: { cardCurrent, cashCurrent, totalCurrent: sum([cardCurrent, cashCurrent]) }, cb: cashbackRows, activity,
+    hasActivity: inPeriod.length > 0 || movements.some(m => m.createdAt && Date.parse(m.createdAt) > Date.parse(window.since) && Date.parse(m.createdAt) <= Date.parse(window.cutoffAt)) };
 }
 
 async function deliverSummary({ now = new Date(), mode, requestId, table, send, render }) {

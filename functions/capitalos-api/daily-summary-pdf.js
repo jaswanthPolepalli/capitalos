@@ -49,13 +49,20 @@ function renderDailySummary(summary) {
       text('Your capital, at a glance.', 29, navy, 16);
       const label = new Date(`${summary.date}T12:00:00+05:30`).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'long', year: 'numeric' });
       text(`${label}  |  India Standard Time`, 9, navy, 26);
-      text(`${summary.activity.count} transaction${summary.activity.count === 1 ? '' : 's'} recorded`, 17);
+      text(`Activity from 12:01 AM to ${new Date(summary.cutoffAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} IST`, 13);
+      text(`${summary.activity.count} transaction${summary.activity.count === 1 ? '' : 's'} recorded`, 10);
       table(['CAPITAL ADDED', 'CAPITAL RETURNED', 'PROFIT PAID', 'CASHBACK PAID'],
         [[...['additions', 'returns', 'profits'].map(k => money(summary.activity[k])), summary.activity.unknownCashbackCount ? `${money(summary.activity.cashback)} + ${summary.activity.unknownCashbackCount} unrecorded` : money(summary.activity.cashback)]], Array(4).fill(width / 4), [], true);
-      y += 24; text('Card section', 17);
+      y += 24; text('Current card usage', 17);
       const rows = summary.rows.map(r => [r.partner, r.card, money(r.amount), r.due.length ? r.due.map(d => d ? date(d) : 'Bill not generated').join('\n') : 'Bill not generated', r.profit ? money(r.profit) : r.closedWithoutPayment ? 'Profit closed' : 'Profit paid']);
       rows.push(['Total', `${new Set(summary.rows.map(r => r.cardId || `${r.partner}:${r.card}`)).size} cards`, money(summary.rows.reduce((s, r) => s + r.amount, 0)), '', money(summary.rows.reduce((s, r) => s + r.profit, 0))]);
       table(['PARTNER NAME', 'CARD NAME', 'CUMULATIVE\nTOTAL (INR)', 'DUE DATE', 'PROFIT PENDING\n(INR)'], rows, [85, 157, 94, 91, width - 427], [2, 4], false, true);
+      y += 24; text('Current cash outstanding', 17);
+      const cashRows = (summary.cashRows || []).map(r => [r.partner, money(r.amount), r.dueDate ? date(r.dueDate) : 'No due date']);
+      cashRows.push(['Total cash outstanding', money(summary.balances?.cashCurrent || 0), '']);
+      table(['PARTNER NAME', 'CASH OUTSTANDING (INR)', 'DUE DATE'], cashRows, [170, 170, width - 340], [1], false, true);
+      y += 16;
+      table(['TOTAL CARD USAGE', 'TOTAL CASH', 'TOTAL CURRENT CAPITAL'], [[money(summary.balances?.cardCurrent || 0), money(summary.balances?.cashCurrent || 0), money(summary.balances?.totalCurrent || 0)]], Array(3).fill(width / 3), [], true);
       doc.addPage(); y = 40; text('Cashback follow-up', 17, navy, 20);
       if (!summary.cb.length) text('No cashback to follow up.', 10);
       else table(['PARTNER NAME', 'CARD NAME / TRANSACTION DATE', 'TRANSACTION AMOUNT (INR)'],
