@@ -3,6 +3,43 @@ import { baseData, createApiHarness } from './helpers/api-harness.mjs';
 import { buildProfitPaymentWhatsAppLink } from '../client/src/lib/whatsapp';
 
 describe('profit payment confirmations', () => {
+  it('labels the partner-facing contribution rate as estimated', async () => {
+    const seed = baseData();
+    seed.COS_Partners[0].email = 'partner@example.test';
+    const sendMail = vi.fn().mockResolvedValue({});
+    const h = createApiHarness(seed, undefined, sendMail);
+    await h.request('POST', 'allocations', { partnerId: 'p', amountRupees: 12000, profitPercent: 3, receivedDate: '2026-09-01' });
+    await vi.waitFor(() => expect(sendMail).toHaveBeenCalledOnce());
+    expect(sendMail.mock.calls[0][0].html).toContain('Contribution Source</th><td>Cash</td>');
+    expect(sendMail.mock.calls[0][0].html).toContain('Estimated profit % per month');
+    expect(sendMail.mock.calls[0][0].html).not.toContain('Profit Rate');
+  });
+
+  it('includes the linked card name as the contribution source in the email', async () => {
+    const seed = baseData();
+    seed.COS_Partners[0].email = 'partner@example.test';
+    seed.COS_CreditCards[0].card_name = 'HDFC Credit Card';
+    const sendMail = vi.fn().mockResolvedValue({});
+    const h = createApiHarness(seed, undefined, sendMail);
+    await h.request('POST', 'allocations', { partnerId: 'p', amountRupees: 12000, profitPercent: 3, receivedDate: '2026-09-01', creditCardId: 'c' });
+    await vi.waitFor(() => expect(sendMail).toHaveBeenCalledOnce());
+    expect(sendMail.mock.calls[0][0].html).toContain('Contribution Source</th><td>Credit Card — HDFC Credit Card</td>');
+  });
+
+  it('shows same-card outstanding split by bill status after a capital return', async () => {
+    const seed = baseData();
+    seed.COS_Partners[0].email = 'partner@example.test';
+    Object.assign(seed.COS_Allocations[0], { credit_card_id: 'c', return_date: '2026-12-01', notes: 'WA_CONFIRMED' });
+    seed.COS_Allocations.push({ ...seed.COS_Allocations[0], ROWID: 'b', amount_rupees: 20000, return_date: null, notes: '' });
+    const sendMail = vi.fn().mockResolvedValue({});
+    const h = createApiHarness(seed, undefined, sendMail);
+    await h.request('POST', 'capital-returns', { partnerId: 'p', allocationId: 'a', amountRupees: 3000, returnedDate: '2026-10-09' });
+    await vi.waitFor(() => expect(sendMail).toHaveBeenCalledOnce());
+    const html = sendMail.mock.calls[0][0].html;
+    expect(html).toContain('Bill generated</td><td>₹6,000</td>');
+    expect(html).toContain('Bill not generated</td><td>₹20,000</td>');
+  });
+
   it('accepts and reloads profit paid after the principal has been fully returned', async () => {
     const seed = baseData();
     seed.COS_Returns[0].amount_rupees = seed.COS_Allocations[0].amount_rupees;

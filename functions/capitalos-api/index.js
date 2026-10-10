@@ -92,14 +92,15 @@ async function sendPartnerEmail(req, partnerId, subject, htmlBody) {
 
 const APP_BASE_URL = (process.env.APP_BASE_URL || "https://capitalos-60070830470.development.catalystserverless.in/app").replace(/\/$/, "");
 
-function allocationEmail(partnerName, partnerId, amountRupees, profitPercent, receivedDate) {
+function allocationEmail(partnerName, partnerId, amountRupees, profitPercent, receivedDate, fundingSource) {
   const portalUrl = `${APP_BASE_URL}/#/p/partner-${partnerId}`;
   return `
 <p>Dear ${partnerName},</p>
 <p>We have recorded a new capital allocation for your account in <strong>CapitalOS</strong>.</p>
 <table cellpadding="8" cellspacing="0" border="1" style="border-collapse:collapse;font-family:sans-serif;">
   <tr><th align="left">Amount</th><td>₹${Number(amountRupees).toLocaleString("en-IN")}</td></tr>
-  <tr><th align="left">Profit Rate</th><td>${profitPercent}%</td></tr>
+  <tr><th align="left">Contribution Source</th><td>${escapeHtml(fundingSource)}</td></tr>
+  <tr><th align="left">Estimated profit % per month</th><td>${profitPercent}%</td></tr>
   <tr><th align="left">Received Date</th><td>${receivedDate}</td></tr>
 </table>
 <p>You can view your complete capital statement and profit history at any time using the link below:</p>
@@ -153,20 +154,43 @@ ${details.map(([label, value]) => `  <tr><th align="left">${label}</th><td>${esc
 <p>Thank you.<br/>— CapitalOS</p>`;
 }
 
-function capitalReturnEmail(partnerName, partnerId, amountRupees, returnedDate) {
+function capitalReturnEmail(partnerName, partnerId, amountRupees, returnedDate, outstandingRows) {
   const portalUrl = `${APP_BASE_URL}/#/p/partner-${partnerId}`;
+  const money = value => `₹${Number(value).toLocaleString('en-IN')}`;
   return `
 <p>Dear ${partnerName},</p>
 <p>A capital return has been processed for your account in <strong>CapitalOS</strong>.</p>
 <table cellpadding="8" cellspacing="0" border="1" style="border-collapse:collapse;font-family:sans-serif;">
-  <tr><th align="left">Amount Returned</th><td>₹${Number(amountRupees).toLocaleString("en-IN")}</td></tr>
-  <tr><th align="left">Date</th><td>${returnedDate}</td></tr>
+  <tr><th align="left">Amount Returned</th><td>${money(amountRupees)}</td></tr>
+  <tr><th align="left">Date</th><td>${escapeHtml(returnedDate)}</td></tr>
+  <tr><th align="left" colspan="2">Outstanding for this source</th></tr>
+${outstandingRows.length ? outstandingRows.map(([label, amount]) => `  <tr><td>${escapeHtml(label)}</td><td>${money(amount)}</td></tr>`).join('\n') : '  <tr><td colspan="2">No outstanding capital</td></tr>'}
 </table>
 <p>View your updated capital statement here:</p>
 <p><a href="${portalUrl}" style="display:inline-block;padding:10px 18px;background:#176f50;color:#fff;border-radius:4px;text-decoration:none;font-weight:700;">View My Portal →</a></p>
 <p style="font-size:12px;color:#888;">${portalUrl}</p>
 <p>Please contact us if you have any questions.</p>
 <p>Regards,<br/>CapitalOS Team</p>`;
+}
+
+// Mirror the daily-summary PDF: card balances are billed only when the bill date
+// was confirmed and a return date is present. Group by the same partner/card source.
+function sourceOutstandingRows(allocation, allocations, returns) {
+  const sourceAllocations = allocation.creditCardId
+    ? allocations.filter(item => item.partnerId === allocation.partnerId && item.creditCardId === allocation.creditCardId)
+    : [allocation];
+  const transferred = new Set(allocations.flatMap(item => item.combination?.sources.map(source => source.id) || []));
+  const totals = new Map();
+  for (const item of sourceAllocations) {
+    const returned = returns.filter(row => row.allocationId === item.id).reduce((sum, row) => sum + row.amountRupees, 0);
+    const outstanding = transferred.has(item.id) ? 0 : Math.max(0, item.amountRupees - returned);
+    if (!outstanding) continue;
+    const key = allocation.creditCardId
+      ? item.returnDate && item.notes?.includes('WA_CONFIRMED') ? 'Bill generated' : 'Bill not generated'
+      : 'Outstanding';
+    totals.set(key, (totals.get(key) || 0) + outstanding);
+  }
+  return [...totals.entries()];
 }
 
 const TABLES = {
@@ -703,12 +727,19 @@ module.exports = async function(req, res) {
           cashback_data: JSON.stringify({ status: body.creditCardId ? 'review' : 'not_applicable', notes: '' }),
         });
         var mappedAlloc = monthlyCashback((await fetchAllRows(req, TABLES.ALLOCATIONS)).filter(r => !isDeleted(r.notes)).map(mapAllocation)).find(a => a.id === String(inserted.ROWID));
+        let fundingSource = 'Cash';
+        if (body.creditCardId) {
+          const cards = await fetchAllRows(req, TABLES.CREDIT_CARDS);
+          const card = cards.find(row => String(row.ROWID) === String(body.creditCardId)
+            && String(row.partner_id) === String(body.partnerId) && !isDeleted(row.notes));
+          fundingSource = card?.card_name ? `Credit Card — ${card.card_name}` : 'Credit Card';
+        }
         // Fire-and-forget email — does not block the response
         sendPartnerEmail(
           req,
           body.partnerId,
           "New Capital Allocation Recorded — CapitalOS",
-          allocationEmail("Partner", body.partnerId, body.amountRupees, body.profitPercent, body.receivedDate)
+          allocationEmail("Partner", body.partnerId, body.amountRupees, body.profitPercent, body.receivedDate, fundingSource)
         );
         return created(res, mappedAlloc);
       }
@@ -774,7 +805,8 @@ module.exports = async function(req, res) {
         if (!allocation || allocation.partnerId !== String(body.partnerId)) return badRequest(res, 'Contribution not found for partner.');
         if (allocations.some(a => a.combination?.sources.some(s => s.id === allocation.id))) return badRequest(res, 'Return capital against the combined entry.');
         if (body.returnedDate < allocation.receivedDate || allocation.receivedDate > new Date().toISOString().slice(0, 10)) return badRequest(res, 'Combined capital is not yet effective.');
-        const previousReturns = (await fetchAllRows(req, TABLES.CAPITAL_RETURNS)).filter(r => !isDeleted(r.notes) && String(r.allocation_id) === allocation.id);
+        const allReturnRows = (await fetchAllRows(req, TABLES.CAPITAL_RETURNS)).filter(r => !isDeleted(r.notes));
+        const previousReturns = allReturnRows.filter(r => String(r.allocation_id) === allocation.id);
         if (Number(body.amountRupees) > allocation.amountRupees - previousReturns.reduce((s, r) => s + Number(r.amount_rupees), 0)) return badRequest(res, 'Return exceeds outstanding capital.');
         var inserted = await insertRow(req, TABLES.CAPITAL_RETURNS, {
           allocation_id: String(body.allocationId),
@@ -784,11 +816,13 @@ module.exports = async function(req, res) {
           notes: String(body.notes || "").trim(),
         });
         var mappedReturn = mapCapitalReturn(inserted);
+        const outstandingRows = sourceOutstandingRows(allocation, allocations,
+          [...allReturnRows.map(mapCapitalReturn), mappedReturn]);
         sendPartnerEmail(
           req,
           body.partnerId,
           "Capital Returned to Your Account — CapitalOS",
-          capitalReturnEmail("Partner", body.partnerId, body.amountRupees, body.returnedDate)
+          capitalReturnEmail("Partner", body.partnerId, body.amountRupees, body.returnedDate, outstandingRows)
         );
         return created(res, mappedReturn);
       }

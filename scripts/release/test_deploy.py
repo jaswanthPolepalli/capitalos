@@ -117,6 +117,14 @@ class Guards(unittest.TestCase):
                     release.sync()
                 command.assert_not_called()
 
+    def test_hosted_verification_receives_release_scope(self):
+        with tempfile.TemporaryDirectory() as folder:
+            release = deploy.Release({}, 'client', Path(folder))
+            with patch.object(release, 'helper') as helper, patch.object(release, 'save'):
+                release.hosted()
+            helper.assert_called_once_with('verify_release.py', 'target', 'candidate',
+                                           'live-verification', 'client')
+
     def test_secret_match_never_echoes_value(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

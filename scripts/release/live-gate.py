@@ -27,6 +27,9 @@ for f in json.loads((r/'target/functions.json').read_text()):
 history=c.request(base+'/webapp/history');old=json.loads((r/'target/frontend-history.json').read_text())
 assert next(v['history_id'] for v in history if v.get('status'))==next(v['history_id'] for v in old if v.get('status'))
 host=json.loads((r/'target/project.json').read_text())['project_domain_details']['project_domain']
-assert canonical(api('target',host))==canonical(json.loads((r/'target/api-before.json').read_text()))
+# The write barrier is still held. Capture the API baseline once, immediately after
+# the full drift checks, instead of making the same 12 requests during backup and
+# repeating them here.
+save('target/api-before.json',api('target',host))
 save('target-deployment-gate.json',{'passed':True,'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'data_backup_verified':True,'isolated_restore_and_rollback_verified':True,'raw_data_schema_functions_config_frontend_schedules_unchanged':True,'validation_passed':True,'scope':os.environ['CAPITALOS_RELEASE_SCOPE'],'rollback_procedure':'release-procedure.md'})
 print('LIVE RELEASE GATE PASSED: fresh data, schema, deployed artifacts/configuration, schedules and rollback verified.')

@@ -8,17 +8,21 @@ r=Path(os.environ['CAPITALOS_RELEASE_DIR']);sys.path.insert(0,str(Path(__file__)
 from catalyst import Catalyst,save
 from capture import rows,download
 from smoke import api,canonical,get
-label,workspace,report=sys.argv[1:4];p=json.loads((r/label/'project.json').read_text());pid=str(p['id']);host=p['project_domain_details']['project_domain'];base='/project/'+pid;c=Catalyst();source=r/workspace
+label,workspace,report=sys.argv[1:4];scope=sys.argv[4] if len(sys.argv)>4 else 'all'
+if scope not in ('client','functions','all'):raise RuntimeError('Unsupported verification scope')
+p=json.loads((r/label/'project.json').read_text());pid=str(p['id']);host=p['project_domain_details']['project_domain'];base='/project/'+pid;c=Catalyst();source=r/workspace
 apis=api(label,host)
 baseline=r/label/'api-before.json'
 if baseline.exists():
  expected=json.loads(baseline.read_text())
  assert canonical(apis)==canonical(expected),'API baseline mismatch'
 else:save(label+'/api-before.json',apis)
-files=[f for f in (source/'client/dist').rglob('*') if f.is_file() and f.name!='client-package.json']
-def check(f):
- rel=str(f.relative_to(source/'client/dist'));assert hashlib.sha256(get(host+'/app/'+rel)).digest()==hashlib.sha256(f.read_bytes()).digest(),rel
-with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:list(pool.map(check,files))
+files=[]
+if scope in ('client','all'):
+ files=[f for f in (source/'client/dist').rglob('*') if f.is_file() and f.name!='client-package.json']
+ def check(f):
+  rel=str(f.relative_to(source/'client/dist'));assert hashlib.sha256(get(host+'/app/'+rel)).digest()==hashlib.sha256(f.read_bytes()).digest(),rel
+ with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:list(pool.map(check,files))
 count=0
 for f in (r/label/'data').glob('*.json'):
  expected=json.loads(f.read_text());assert rows(c,base,f.stem)==expected,'Data changed: '+f.stem;count+=len(expected)
@@ -27,8 +31,8 @@ if label=='target':
  for f in (r/'target/schema').glob('*.json'):assert c.request(base+'/table/'+f.stem+'/column')==json.loads(f.read_text()),'Schema changed'
 functions={f['name']:f for f in c.request(base+'/function')};result={}
 targets=json.loads((source/'catalyst.json').read_text())['functions']['targets']
-assert set(functions)==set(targets),'Unexpected function inventory'
-for name in targets:
+if scope in ('functions','all'): assert set(functions)==set(targets),'Unexpected function inventory'
+for name in targets if scope in ('functions','all') else []:
  fn=functions[name];actual=c.request(base+'/function/'+str(fn['id']));config=json.loads((source/'functions'/name/'catalyst-config.json').read_text())['deployment']
  assert actual['stack']==config['stack']=='node24'
  assert actual['configuration']['memory']==config['memory'],name+' memory'
@@ -60,4 +64,4 @@ else:
   assert c.request(base+'/'+endpoint)==json.loads((r/'target'/(filename+'.json')).read_text()),'Existing schedule/pool changed'
  save(report+'-artifacts/scheduler-verified.json',{'unchanged':True})
 save(report+'.json',{'passed':True,'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'project':pid,'apis_verified':len(apis),'assets_verified':len(files),'raw_records_unchanged':count,'functions':result})
-print(json.dumps({'passed':True,'project':pid,'apis':len(apis),'assets':len(files),'rows':count,'functions':result}))
+print(json.dumps({'passed':True,'project':pid,'apis':len(apis),'assets':len(files),'rows':count,'functions':result,'scope':scope}))

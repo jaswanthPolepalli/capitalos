@@ -283,7 +283,7 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
                   <th className="public-portal__th--money">Capital</th>
                   <th>Status</th>
                   <th>Source</th>
-                  <th>Est. rate</th>
+                  <th>Estimated profit %</th>
                   <th>Deployed since</th>
                   <th>Return date</th>
                   <th className="public-portal__th--money">Regular profit received</th><th className="public-portal__th--money">Cashback paid</th><th className="public-portal__th--money">Total profits received</th>
@@ -349,7 +349,7 @@ function PartnerPortalContent({ partnerId }: { partnerId: string }) {
                         <span style={{ fontSize: 11, color: "var(--muted)" }}>Cash</span>
                       )}
                     </td>
-                    <td data-label="Est. rate">
+                    <td data-label="Estimated profit %">
                       <span className="public-portal__status public-portal__status--pending" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
                         {a.profitPercent}% p.m.
                       </span>

@@ -230,8 +230,6 @@ class Release:
         self.helper('capture.py', project, label)
         verify_manifest(self.root / label, self.root / label / 'checksums.json')
         self.hook('assert_quiesced')
-        if label == 'target':
-            self.helper('smoke.py', 'target', 'baseline')
 
     def prepare(self):
         self.assert_source()
@@ -320,7 +318,7 @@ No automatic recovery reset, live data restore, or retry is authorized by a fail
         self.helper('live-gate.py')
 
     def hosted(self):
-        self.helper('verify_release.py', 'target', 'candidate', 'live-verification')
+        self.helper('verify_release.py', 'target', 'candidate', 'live-verification', self.scope)
         self.state['hosted_verified'] = True
         self.save()
 

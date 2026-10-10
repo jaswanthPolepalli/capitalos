@@ -33,6 +33,7 @@ it('lists invested amounts and CFO earnings with only the requested columns', as
 it('shows partner amounts without CFO amounts, split details or navigation in the partner portal', async () => {
   render(<MemoryRouter initialEntries={['/p/partner-p']}><Routes><Route path="/p/:token" element={<PublicPortalPage />} /></Routes></MemoryRouter>);
   await screen.findAllByText('Synthetic Partner');
+  expect(screen.getByText('Estimated profit %')).toBeTruthy();
   expect(screen.getAllByText('₹5,000').length).toBeGreaterThan(0);
   for (const text of ['₹7,000', '₹2,000', 'CFO Share', 'Partner share', 'CFO share']) expect(screen.queryByText(text)).toBeNull();
   expect(document.body.textContent).not.toContain('PROFIT_SPLIT');
