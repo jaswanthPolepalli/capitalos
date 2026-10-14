@@ -36,7 +36,11 @@ export function cashbackStatus(allocation) {
 export function prepareCashback(input, allocation, today, now = new Date().toISOString()) {
   const cashback = validateCashback(input, allocation, today);
   cashback.updatedAt = now;
-  if (cashback.status === 'paid') cashback.createdAt = allocation.cashback?.createdAt || now;
+  if (cashback.status === 'paid') {
+    // Keep the timestamp for the current paid settlement when its details are
+    // edited. A later unpaid/review state starts a new settlement if paid again.
+    cashback.createdAt = allocation.cashback?.status === 'paid' ? allocation.cashback.createdAt || now : now;
+  }
   return cashback;
 }
 export function validateCashback(input, allocation, today) {

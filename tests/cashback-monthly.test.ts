@@ -66,6 +66,14 @@ it('recognises recorded decisions and ignores legacy automatic unpaid defaults',
   expect(cashbackRecorded({status:'review'})).toBe(false);
   expect(cashbackRecorded(null)).toBe(false);
 });
+it('starts a fresh timestamp when a payment is recorded again after leaving paid status',()=>{
+  const paid = prepareCashback({status:'paid',amountRupees:500,paidDate:'2026-09-03'}, transaction('a'), '2026-10-06', '2026-10-06T09:00:00Z');
+  const edited = prepareCashback({status:'paid',amountRupees:600,paidDate:'2026-09-04'}, { ...transaction('a'), cashback: paid }, '2026-10-06', '2026-10-06T10:00:00Z');
+  expect(edited.createdAt).toBe('2026-10-06T09:00:00Z');
+  const reopened = prepareCashback({status:'review'}, { ...transaction('a'), cashback: edited }, '2026-10-06', '2026-10-06T11:00:00Z');
+  const repaid = prepareCashback({status:'paid',amountRupees:700,paidDate:'2026-09-05'}, { ...transaction('a'), cashback: reopened }, '2026-10-06', '2026-10-06T12:00:00Z');
+  expect(repaid.createdAt).toBe('2026-10-06T12:00:00Z');
+});
 it('recalculates the warning list after deleting and restoring a recorded transaction',()=>{
   const rows=[transaction('a'),transaction('b','2026-09-02','c',{status:'unpaid',updatedAt:'2026-10-06T00:00:00Z'})];
   expect(row(rows,'a').cashbackOtherAllocationIds).toEqual(['b']);

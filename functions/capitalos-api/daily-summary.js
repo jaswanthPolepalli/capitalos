@@ -110,7 +110,7 @@ function buildDailySummary(data, window = dailyWindow()) {
     ...returns.map(r => ({ kind: 'returns', date: r.returnedDate, amount: r.amountRupees, createdAt: r.createdAt })),
     // CEO paid totals include the CFO share; pending profit still uses partner payments.
     ...profits.map(p => ({ kind: 'profits', date: p.paidDate, amount: p.combinedAmountRupees, createdAt: p.createdAt })),
-    ...cashbacks.map(a => ({ kind: 'cashback', date: a.cashback.paidDate, amount: a.cashback.combinedAmountRupees != null ? money(a.cashback.combinedAmountRupees) : a.cashback.amountRupees, createdAt: a.cashback.updatedAt || a.cashback.createdAt })),
+    ...cashbacks.map(a => ({ kind: 'cashback', date: a.cashback.paidDate, amount: a.cashback.combinedAmountRupees != null ? money(a.cashback.combinedAmountRupees) : a.cashback.amountRupees, createdAt: a.cashback.createdAt || a.cashback.updatedAt })),
   ];
   const today = movements.filter(m => m.date === window.date);
   const cashRows = [...cashGroups.values()].sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || a.partner.localeCompare(b.partner));
