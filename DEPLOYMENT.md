@@ -2,6 +2,8 @@
 
 **Latest backend correction — 14 October 2026:** Cashback sharing ledger times now use the timestamp of the current paid settlement. Editing a paid settlement preserves its timestamp; recording it as paid again after leaving the paid state starts a new timestamp. The `capitalos-api` function was deployed through the manual Catalyst workflow after fresh 962-row Development and recovery backups, an isolated restore and rollback rehearsal, 945 passing tests and hosted verification. All 962 live rows remained unchanged. See [release evidence and rollback](docs/deployment-cashback-time-2026-10-14.md).
 
+**Latest frontend correction — 14 October 2026:** Cashback sharing ledger timestamps are displayed in Asia/Kolkata time. The client-only correction was deployed after fresh 964-row Development and recovery backups, isolated restoration and rollback rehearsal, 946 passing tests and hosted verification. All 964 live rows remained unchanged. See [release evidence and rollback](docs/deployment-cashback-timezone-2026-10-14.md).
+
 **Latest release — 10 October 2026:** Daily summary reports start at 12:01 AM IST, include a displayable data preview and summarize current card usage, paid activity, and cash outstanding by partner and due date. Cash rows do not show expected profit. The API, daily-summary worker and client were deployed after fresh 835-row backup verification, isolated restore and rollback rehearsal, 944 passing tests and hosted checks. See [release evidence and rollback](docs/deployment-daily-summary-report-2026-10-10.md).
 
 **Previous backend release — 10 October 2026:** Partner emails identify cash or the named credit card as the contribution source and label the monthly profit rate as estimated. Capital return emails show remaining capital for the same source, split by confirmed bill status for card contributions. The `capitalos-api` function only was deployed after fresh 835-row backup verification, recovery-project rollback rehearsal, 944 passing tests and hosted checks. See [release evidence and rollback](docs/deployment-partner-emails-2026-10-10.md).
@@ -61,6 +63,8 @@ Development has the additive nullable `COS_Allocations.cashback_data` TEXT(10,00
 ## Mandatory backup gate
 
 **No deployment without a fresh, verified backup of the target environment.** This rule applies before every Development or Production release, including frontend-only, backend-only, hotfix and manual/CI deployments, and before hosted schema/data migrations. Development may be the app used for daily operations.
+
+For a user-requested release, follow the [manual Catalyst deployment playbook](docs/manual-deployment.md) after the read-only `npm run deploy -- --plan` step. It documents the repository's current release path, including private evidence, fresh backup/recovery checks, scope-specific deployment, hosted verification and Git sync.
 
 **Both gates must pass before deployment:**
 

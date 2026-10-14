@@ -7,12 +7,13 @@ import { LedgerPage } from '../client/src/pages/LedgerPage';
 import * as store from '../client/src/store';
 
 let scrollIntoView;
+let data;
 beforeEach(async () => {
   vi.stubGlobal('React', React);
   vi.useFakeTimers();
   scrollIntoView = vi.fn();
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
-  const data = {
+  data = {
     partners: [{ id: 'p', name: 'Partner', notes: '', phone: '', email: '' }],
     allocations: Array.from({ length: 30 }, (_, i) => ({
       id: String(i + 1), partnerId: 'p', amountRupees: 100000, profitPercent: 3,
@@ -69,4 +70,13 @@ it('leaves ordinary ledger browsing and filters in place during background updat
   expect(screen.getAllByRole('combobox')[0].value).toBe('p');
   expect(screen.getByText('Page 2 of 2')).toBeTruthy();
   expect(scrollIntoView).not.toHaveBeenCalled();
+});
+
+it('shows cashback settlement timestamps in India time', async () => {
+  data.allocations[0].cashback = {
+    status: 'paid', amountRupees: 3000, paidDate: '2026-10-14',
+    createdAt: '2026-10-14T10:47:09.000Z', notes: 'Cashback sharing',
+  };
+  await open();
+  expect(screen.getByText('14 Oct 2026, 16:17:09')).toBeTruthy();
 });

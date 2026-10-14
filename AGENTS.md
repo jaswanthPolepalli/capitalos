@@ -29,3 +29,23 @@ supported releases once its documented setup and hosted qualification are comple
 Keep detailed logs private and report stage summaries. On a guardrail failure,
 inspect the relevant evidence; do not bypass checks or rerun a deployment blindly.
 The runner does not replace either mandatory release gate or post-deployment Git sync.
+
+## Deployment requests use the verified manual Catalyst workflow
+
+When the user says to deploy, follow the manual Catalyst procedure in
+[docs/manual-deployment.md](docs/manual-deployment.md), matching the latest
+successful manual release. Start with `npm run deploy -- --plan`, then perform
+the manual workflow in that document. Do not switch to the guarded runner's
+execution path merely because the plan command lists it; this repository's
+runner is not hosted-qualified. The user's deployment request authorizes the
+release work and the post-deployment push to `main`; do not ask for another
+confirmation between the documented gates and deployment.
+
+Always take fresh live and recovery backups for each release. Never reuse an
+older release's snapshots as current backup evidence or use a rollback bundle
+that predates the currently deployed build. Use a new private release folder
+outside Git, verify the current build from that release's live capture, rehearse
+that exact build in the existing recovery project, and perform the final live
+drift check before issuing the scope-specific Catalyst deploy command. Stop if
+any backup, recovery, rollback, drift or hosted check fails; inspect evidence
+before deciding what to do next.

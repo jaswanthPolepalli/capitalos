@@ -43,11 +43,24 @@ function formatLedgerDate(event: LedgerEvent): string {
   // Real ones have a non-zero time from new Date().toISOString() or Catalyst CREATEDTIME
   const hasRealTime = ca.includes("T") && !ca.match(/T00:00:00\.\d+Z$/);
   if (hasRealTime) {
-    // Catalyst Datastore (IST-based servers) stores CREATEDTIME as IST wall-clock
-    // time but serialises it with a "Z" (UTC) suffix — meaning no timezone
-    // conversion is needed. We simply read the UTC fields of the Date object
-    // which give us the original IST digits as entered.
     const d = new Date(ca);
+    // Cashback settlement timestamps are generated as true UTC ISO values by
+    // the API, unlike Catalyst CREATEDTIME values, which encode IST wall time.
+    if (event.eventType === "CASHBACK_PAID") {
+      return d.toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      });
+    }
+    // Other ledger timestamps come from Catalyst CREATEDTIME, whose returned
+    // value encodes IST wall-clock time with a Z suffix. Read its UTC fields to
+    // preserve those original IST digits without converting them a second time.
     const hh = String(d.getUTCHours()).padStart(2, "0");
     const mm = String(d.getUTCMinutes()).padStart(2, "0");
     const ss = String(d.getUTCSeconds()).padStart(2, "0");
